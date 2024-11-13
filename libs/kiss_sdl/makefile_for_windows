@@ -1,0 +1,34 @@
+CPP = x86_64-w64-mingw32-g++
+C = x86_64-w64-mingw32-gcc
+
+LDFLAGS = -L/usr/x86_64-w64-mingw32/lib -lSDL2 -lSDL2_image -lSDL2_ttf
+CFLAGS = -Wall -c -std=c89
+CXXFLAGS = -Wall -c -std=c++17   # C++ flags for compiling my C++ code.
+
+SDL2_INCLUDE_DIR = /usr/x86_64-w64-mingw32/include/SDL2  # Path to SDL2 headers
+
+BIN1 = main
+
+all: $(BIN1)
+
+$(BIN1): main.o kiss_widgets.o kiss_draw.o kiss_general.o kiss_posix.o
+	$(CPP) $^ $(LDFLAGS) -o $@
+
+main.o: ../../src/main.cpp
+	$(CPP) $(CXXFLAGS) -I$(SDL2_INCLUDE_DIR) $^ -o $@
+
+kiss_widgets.o: kiss_widgets.c
+	$(C) $(CFLAGS) -I$(SDL2_INCLUDE_DIR) $^ -o $@
+
+kiss_draw.o: kiss_draw.c
+	$(C) $(CFLAGS) -I$(SDL2_INCLUDE_DIR) $^ -o $@
+
+kiss_general.o: kiss_general.c
+	$(C) $(CFLAGS) -I$(SDL2_INCLUDE_DIR) $^ -o $@
+
+kiss_posix.o: kiss_posix.c
+	$(C) $(CFLAGS) -I$(SDL2_INCLUDE_DIR) $^ -o $@
+
+clean:
+	rm *.o && rm $(BIN1)
+

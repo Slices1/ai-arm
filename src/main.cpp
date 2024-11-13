@@ -32,9 +32,6 @@ typedef struct {
 } Payload;
 
 
-
-
-
 void button_event(kiss_button *button, SDL_Event *e, int *draw, int *quit, int *myCounter)
 {
     if (kiss_button_event(button, e, draw)) {
@@ -221,7 +218,7 @@ int main(int argc, char **argv)
     { // initialise control panel
         //slider values
         const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Additional Sim Sub Steps (rounded)", "name5", "name6", "name7", "name8", "name9"};
-        const float defaultArray[MAX_INPUTTERS] = {0.0f, 0.9f, 30.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        const float defaultArray[MAX_INPUTTERS] = {0.0f, 0.99f, 30.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
         const float rangeArray[MAX_INPUTTERS] = {200.0f, 4.0f, 60.0f, 26.0f, 100.0f, 50.0f, 50.0f, 50.0f, 50.0f};
 
         for(int i =0; i<MAX_INPUTTERS; i++) {
