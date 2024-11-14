@@ -196,7 +196,7 @@ int main(int argc, char **argv)
         float gravity = 9.81f;
         int floorHeight = 589; //from top
     // misc
-        int frameDelayValue = 10;
+        int frameDelayValue;
         int myCounter = 0;
         Uint32 ticksLastTime = SDL_GetTicks(); //the last recorded time
         Uint32 fpsCurrent; //the current FPS.
@@ -218,7 +218,7 @@ int main(int argc, char **argv)
     { // initialise control panel
         //slider values
         const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Additional Sim Sub Steps (rounded)", "name5", "name6", "name7", "name8", "name9"};
-        const float defaultArray[MAX_INPUTTERS] = {0.0f, 0.99f, 30.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        const float defaultArray[MAX_INPUTTERS] = {0.0f, 0.9f, 50.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
         const float rangeArray[MAX_INPUTTERS] = {200.0f, 4.0f, 60.0f, 26.0f, 100.0f, 50.0f, 50.0f, 50.0f, 50.0f};
 
         for(int i =0; i<MAX_INPUTTERS; i++) {
@@ -281,6 +281,8 @@ int main(int argc, char **argv)
     float debug1;
 
     bool showBall = true;
+
+    int temp;
 
     while (!quit) {
         fpsFrameCount++;
