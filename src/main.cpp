@@ -8,6 +8,26 @@ using namespace std;
 #define MAX_INPUTTERS 9
 #define MAX_INFOBUTTONS 3
 
+class Vec2 {
+    public: 
+        float x, y;
+    
+    Vec2(float a = 0.0, float b = 0.0) {
+        x = a;
+        y = b;
+    }
+    
+    // Scalar Vector product using operator*
+    public: Vec2 operator*(float other) {
+        return Vec2(x * other, y * other);
+    }
+
+    // Dot product using operator*
+    float operator*(const Vec2& other) const {
+        return (x * other.x) + (y * other.y);
+    }
+};
+
 typedef struct {
     kiss_hscrollbar slider;
     kiss_entry entry;
@@ -27,8 +47,8 @@ typedef struct {
     float coefficientOfRestitution = 0.7f;
     float coefficientOfFriction = 0.9f;
 
-    float position[2];
-    float velocity[2];
+    Vec2 position;
+    Vec2 velocity;
 } Payload;
 
 
@@ -189,12 +209,10 @@ int main(int argc, char **argv)
         InfoButton infoButtons[MAX_INFOBUTTONS];
     // simulation declerations
         Payload payload;
-        payload.velocity[0] = 0;
-        payload.velocity[1] = 0;
-        payload.position[0] = 300;
-        payload.position[1] = 100;
-        float gravity = 9.81f;
-        int floorHeight = 589; //from top
+        payload.position.x = 300;
+        payload.position.y = 30;
+        const float gravity = 0.65 * 9.81f;
+        const int floorHeight = 589; //from top
     // misc
         int frameDelayValue;
         int myCounter = 0;
@@ -218,8 +236,8 @@ int main(int argc, char **argv)
     { // initialise control panel
         //slider values
         const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Additional Sim Sub Steps (rounded)", "name5", "name6", "name7", "name8", "name9"};
-        const float defaultArray[MAX_INPUTTERS] = {0.0f, 0.9f, 50.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-        const float rangeArray[MAX_INPUTTERS] = {200.0f, 4.0f, 60.0f, 26.0f, 100.0f, 50.0f, 50.0f, 50.0f, 50.0f};
+        const float defaultArray[MAX_INPUTTERS] = {0.0f, 0.9f, 65.0f, 2.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+        const float rangeArray[MAX_INPUTTERS] = {200.0f, 4.0f, 240.0f, 26.0f, 100.0f, 50.0f, 50.0f, 50.0f, 50.0f};
 
         for(int i =0; i<MAX_INPUTTERS; i++) {
             inputters[i].defaultValue = defaultArray[i];
@@ -274,15 +292,12 @@ int main(int argc, char **argv)
     bool showPendulum = false;
     float rotationAngle = 25; //relative to the horizontal
     float rotationSpeed = 0; // anticlockwise
-    int originx = 1116/2;
-    int originy =  594/2;
-    int endEffectorx;
-    int endEffectory;
+    Vec2 origin = Vec2(1116/2, 594/2);
+    Vec2 endEffector;
     float debug1;
+    float distToCollider;
 
     bool showBall = true;
-
-    int temp;
 
     while (!quit) {
         fpsFrameCount++;
@@ -321,7 +336,7 @@ int main(int argc, char **argv)
                 }
         }
 
-        draw = true; // REMOVE LATER (once sim code is out of the draw block)
+        draw = true; // REMOVE LATER (once sim code is out of the draw block) [WIP]
 
              
         { // Drawing
@@ -347,24 +362,78 @@ int main(int argc, char **argv)
                 rotationSpeed += cos(rotationAngle)*0.07f + -debug1*0.0007f;
                 rotationSpeed *= 0.98f;
                 rotationAngle += rotationSpeed;
-                endEffectorx = 350*cos(rotationAngle) + originx;
-                endEffectory = 350*sin(rotationAngle) + originy;
-                SDL_RenderDrawLine(renderer, originx, originy, endEffectorx, endEffectory);
+                endEffector.x = 350*cos(rotationAngle) + origin.x;
+                endEffector.y = 350*sin(rotationAngle) + origin.y;
+                SDL_RenderDrawLine(renderer, origin.x, origin.y, endEffector.x, endEffector.y);
             }
             if (showBall) { // Draw Ball Bouncing Simulation
                 int subStepsPerFrame = abs(atoi(inputters[3].entry.text)) +1;
                 payload.coefficientOfRestitution = atof(inputters[1].entry.text);
                 for (int step = 0; step < subStepsPerFrame; step++) {
-                    if (payload.position[1] + payload.radius > floorHeight) {
-                        payload.position[1] = floorHeight - payload.radius;
-                        payload.velocity[1] *= -payload.coefficientOfRestitution;
+                    if (payload.position.y + payload.radius > floorHeight) {
+                        payload.position.y = floorHeight - payload.radius;
+                        //payload.velocity.y *= -payload.coefficientOfRestitution;
+                        float uDOTn = payload.velocity.x*(0) + (-1)*payload.velocity.y;
+                        payload.velocity.x += -(payload.coefficientOfRestitution +1)*uDOTn*(0);
+                        payload.velocity.y += -(payload.coefficientOfRestitution +1)*uDOTn*(-1);
                     }
-                    payload.velocity[0] += 0;
-                    payload.velocity[1] += gravity/(subStepsPerFrame);
-                    payload.position[0] += payload.velocity[0];
-                    payload.position[1] += payload.velocity[1];
+                    
+
+                    if (payload.position.y > payload.position.x) {
+                        cout<<"y>x" <<endl; 
+                        distToCollider = abs((-payload.position.x+payload.position.y)/sqrt(2));
+                        payload.position.x += 1/sqrt(2)*distToCollider;
+                        payload.position.y += -1/sqrt(2)*distToCollider;
+                        float uDOTn = payload.velocity.x*(1/sqrt(2)) + -(1/sqrt(2))*payload.velocity.y;
+                        payload.velocity.x += -(payload.coefficientOfRestitution +1)*uDOTn*(1/sqrt(2));
+                        payload.velocity.y += -(payload.coefficientOfRestitution +1)*uDOTn*(-1/sqrt(2));
+                    }
+                    if (payload.position.y > 1000 - payload.position.x) {
+                        cout<<"y>1000-x" <<endl;
+                        distToCollider = abs((payload.position.x+payload.position.y-1000)/sqrt(2));
+                        payload.position.x += -1/sqrt(2)*distToCollider;
+                        payload.position.y += -1/sqrt(2)*distToCollider;
+                        float uDOTn = payload.velocity.x*(-1/sqrt(2)) + (-1/sqrt(2))*payload.velocity.y;
+                        payload.velocity.x += -(payload.coefficientOfRestitution +1)*uDOTn*(-1/sqrt(2));
+                        payload.velocity.y += -(payload.coefficientOfRestitution +1)*uDOTn*(-1/sqrt(2));
+                    }
+                    payload.velocity.x += 0;
+                    payload.velocity.y += gravity/(subStepsPerFrame);
+                    payload.position.x += payload.velocity.x;
+                    payload.position.y += payload.velocity.y;
+
+                    // for all {
+                    //     if collided {
+                    //         new v = calc(v)
+                    //         v = new v
+
+                    //     }
+                    // }
+                    // void Collide(payload, collider) {
+                    //     calc shortest dist
+                    //     move payload in collider normal direction by shortest distance magnitude
+                    //     calculate new v
+                    // }
+
+                    //void hasCollided() {
+                    //     if (distToLineCentre < lineLength + radius) {
+                    //         if (distToLine < radius) {
+                    //             return true;
+                    //         }
+                    //     }
+
+                    //     return false;
+                    // }
+
+                    // void hasCollided(payload, collider) {
+                    //     return if line segments intersect (true/false)
+                    // }
+
+                DrawCircle(renderer, payload.position.x, payload.position.y, payload.radius);
                 }
-                DrawCircle(renderer, payload.position[0], payload.position[1], payload.radius);
+
+                SDL_RenderDrawLine(renderer, 0, 0, 1000, 1000);
+                SDL_RenderDrawLine(renderer, 0, 1000, 1000, 0);
                 //SDL_Delay(140-frameDelayValue);
             }
 
@@ -398,8 +467,3 @@ int main(int argc, char **argv)
     return 0;
 }
 
-/*todo:
--change combobox functionality: remove drop down from the entry box, remove the 2 labels, remove output box, move down the entry box.
--store my inputers in an array(pointer, min, max)
--pop up pseudocode, code. info box (suggested value ranges are that of the slider. this does does this. press enter to stop inputting to an inputter.   etc)
-*/
