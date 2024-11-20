@@ -44,13 +44,16 @@ typedef struct {
 
 typedef struct {
     int radius = 30;
-    float coefficientOfRestitution = 0.7f;
-    float coefficientOfFriction = 0.9f;
+    float coefOfRestitution = 0.7f;
+    float coefOfFriction = 0.9f;
 
     Vec2 position;
     Vec2 velocity;
 } Payload;
 
+float LengthOfVector(Vec2 myVector) {
+    return sqrt(myVector.x*myVector.x + myVector.y*myVector.y);
+}
 
 void button_event(kiss_button *button, SDL_Event *e, int *draw, int *quit, int *myCounter)
 {
@@ -296,6 +299,8 @@ int main(int argc, char **argv)
     Vec2 endEffector;
     float debug1;
     float distToCollider;
+    Vec2 leftNormal = Vec2(1/sqrt(2), -1/sqrt(2));
+    Vec2 rightNormal = Vec2(-1/sqrt(2), -1/sqrt(2));
 
     bool showBall = true;
 
@@ -321,8 +326,6 @@ int main(int argc, char **argv)
                 popup_event(&popupIsActive, &popupButton, &popupLabel, &popupRect, &e, &draw);
                 //break;
             }
-            
-            //button_event(&button, &e, &draw, &quit, &myCounter); //makes quit,draw true?
 
             for(int i =0; i<MAX_INPUTTERS; i++) {
                 slider_event(&inputters[i], &e, &draw);
@@ -368,35 +371,29 @@ int main(int argc, char **argv)
             }
             if (showBall) { // Draw Ball Bouncing Simulation
                 int subStepsPerFrame = abs(atoi(inputters[3].entry.text)) +1;
-                payload.coefficientOfRestitution = atof(inputters[1].entry.text);
+                payload.coefOfRestitution = atof(inputters[1].entry.text);
                 for (int step = 0; step < subStepsPerFrame; step++) {
-                    if (payload.position.y + payload.radius > floorHeight) {
-                        payload.position.y = floorHeight - payload.radius;
-                        //payload.velocity.y *= -payload.coefficientOfRestitution;
-                        float uDOTn = payload.velocity.x*(0) + (-1)*payload.velocity.y;
-                        payload.velocity.x += -(payload.coefficientOfRestitution +1)*uDOTn*(0);
-                        payload.velocity.y += -(payload.coefficientOfRestitution +1)*uDOTn*(-1);
-                    }
+                    // if (payload.position.y + payload.radius > floorHeight) {
+                    //     payload.position.y = floorHeight - payload.radius;
+                    //     //payload.velocity.y *= -payload.coefOfRestitution;
+                    //     float uDOTn = payload.velocity.x*(0) + (-1)*payload.velocity.y;
+                    //     payload.velocity.x += -(payload.coefOfRestitution +1)*uDOTn*(0);
+                    //     payload.velocity.y += -(payload.coefOfRestitution +1)*uDOTn*(-1);
+                    // }
                     
 
                     if (payload.position.y > payload.position.x) {
-                        cout<<"y>x" <<endl; 
-                        distToCollider = abs((-payload.position.x+payload.position.y)/sqrt(2));
-                        payload.position.x += 1/sqrt(2)*distToCollider;
-                        payload.position.y += -1/sqrt(2)*distToCollider;
-                        float uDOTn = payload.velocity.x*(1/sqrt(2)) + -(1/sqrt(2))*payload.velocity.y;
-                        payload.velocity.x += -(payload.coefficientOfRestitution +1)*uDOTn*(1/sqrt(2));
-                        payload.velocity.y += -(payload.coefficientOfRestitution +1)*uDOTn*(-1/sqrt(2));
+                        cout<<"y>x" <<endl;
+                        distToCollider = abs((-payload.position.x+payload.position.y)/sqrt(2)); //fix this!!!!!!
+                        payload.position = payload.position + leftNormal*distToCollider;
+                        payload.velocity = payload.velocity -(payload.coefOfRestitution +1)*(payload.velocity*leftNormal)*leftNormal;
                     }
-                    if (payload.position.y > 1000 - payload.position.x) {
-                        cout<<"y>1000-x" <<endl;
-                        distToCollider = abs((payload.position.x+payload.position.y-1000)/sqrt(2));
-                        payload.position.x += -1/sqrt(2)*distToCollider;
-                        payload.position.y += -1/sqrt(2)*distToCollider;
-                        float uDOTn = payload.velocity.x*(-1/sqrt(2)) + (-1/sqrt(2))*payload.velocity.y;
-                        payload.velocity.x += -(payload.coefficientOfRestitution +1)*uDOTn*(-1/sqrt(2));
-                        payload.velocity.y += -(payload.coefficientOfRestitution +1)*uDOTn*(-1/sqrt(2));
-                    }
+                    // if (payload.position.y > 1000 - payload.position.x) {
+                    //     cout<<"y>1000-x" <<endl;
+                    //     distToCollider = abs((-payload.position.x+payload.position.y-1000)/sqrt(2)); //fix this!!!!!!
+                    //     payload.position += rightNormal*distToCollider;
+                    //     payload.velocity += -(payload.coefOfRestitution +1)*(payload.velocity*rightNormal)*rightNormal;
+                    // }
                     payload.velocity.x += 0;
                     payload.velocity.y += gravity/(subStepsPerFrame);
                     payload.position.x += payload.velocity.x;
