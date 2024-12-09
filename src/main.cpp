@@ -7,6 +7,7 @@ using namespace std;
 
 #define MAX_INPUTTERS 9
 #define MAX_INFOBUTTONS 3
+#define MAX_STATIC_COLLIDERS 1
 
 class Vec2 {
     public: 
@@ -25,6 +26,28 @@ class Vec2 {
     // Dot product using operator*
     float operator*(const Vec2& other) const {
         return (x * other.x) + (y * other.y);
+    }
+
+    // Vec2 addition using operator+
+    Vec2 operator+(const Vec2& other) const {
+        return Vec2(x + other.x, y + other.y);
+    }
+
+    // Vec2 += addition using operator+=
+    Vec2& operator+=(const Vec2& other) {
+        x += other.x;
+        y += other.y;
+        return *this;
+    }
+
+    // Vec2 subtraction using operator-
+    Vec2 operator-(const Vec2& other) const {
+        return Vec2(x - other.x, y - other.y);
+    }
+
+    // Scalar Vector quotient using operator/
+    public: Vec2 operator/(float other) {
+        return Vec2(x / other, y / other);
     }
 };
 
@@ -55,6 +78,24 @@ float LengthOfVector(Vec2 myVector) {
     return sqrt(myVector.x*myVector.x + myVector.y*myVector.y);
 }
 
+Vec2 Normalise(Vec2 myVector) {
+    return myVector/LengthOfVector(myVector);
+}
+
+Vec2 Perpendicuar(Vec2 myVector) { // 90 degree anti-clockwise rotation
+    return Vec2(-myVector.y, myVector.x);
+}
+
+typedef struct Collider { // must be such that left side of collider is the exterior
+    Vec2 startPos;
+    Vec2 endPos;
+    Vec2 direction;
+    Collider(Vec2 startPos1, Vec2 endPos1) {
+        startPos = startPos1;
+        endPos = endPos1;
+        direction = Normalise(endPos - startPos);
+    } // constructor
+} Collider;
 void button_event(kiss_button *button, SDL_Event *e, int *draw, int *quit, int *myCounter)
 {
     if (kiss_button_event(button, e, draw)) {
@@ -170,6 +211,15 @@ void DrawCircle(SDL_Renderer* renderer, int32_t centreX, int32_t centreY, int32_
     }
 }
 
+bool isColliding(Payload payload, Collider collider) {
+    // condition: is behind
+    float c = collider.direction.x * collider.startPos.y - collider.direction.y * collider.startPos.x;
+    float displacementToCollider = collider.direction.y * payload.position.x + collider.direction.x * payload.position.y + c;
+    // would be over sqrt(a^2 + b^2) where they are the x and y coefs but that always results 1 anyway
+    cout << "displacement to collider: " << displacementToCollider << endl;
+}
+
+
 
 int main(int argc, char **argv)
 {
@@ -211,11 +261,17 @@ int main(int argc, char **argv)
     // info buttons
         InfoButton infoButtons[MAX_INFOBUTTONS];
     // simulation declerations
-        Payload payload;
-        payload.position.x = 300;
-        payload.position.y = 30;
-        const float gravity = 0.65 * 9.81f;
-        const int floorHeight = 589; //from top
+        // constants
+            const float gravity = 0.65 * 9.81f;
+            const int floorHeight = 589; //from top
+        // payload
+            Payload payload;
+            payload.position.x = 300;
+            payload.position.y = 30;
+        // colliders
+            Collider staticColliders[1] = {
+                Collider(Vec2(450.,600.), Vec2(450.,200)),
+                };
     // misc
         int frameDelayValue;
         int myCounter = 0;
@@ -297,10 +353,10 @@ int main(int argc, char **argv)
     float rotationSpeed = 0; // anticlockwise
     Vec2 origin = Vec2(1116/2, 594/2);
     Vec2 endEffector;
-    float debug1;
-    float distToCollider;
     Vec2 leftNormal = Vec2(1/sqrt(2), -1/sqrt(2));
     Vec2 rightNormal = Vec2(-1/sqrt(2), -1/sqrt(2));
+    float debug1;
+    float distToCollider;
 
     bool showBall = true;
 
@@ -373,58 +429,32 @@ int main(int argc, char **argv)
                 int subStepsPerFrame = abs(atoi(inputters[3].entry.text)) +1;
                 payload.coefOfRestitution = atof(inputters[1].entry.text);
                 for (int step = 0; step < subStepsPerFrame; step++) {
-                    // if (payload.position.y + payload.radius > floorHeight) {
-                    //     payload.position.y = floorHeight - payload.radius;
-                    //     //payload.velocity.y *= -payload.coefOfRestitution;
-                    //     float uDOTn = payload.velocity.x*(0) + (-1)*payload.velocity.y;
-                    //     payload.velocity.x += -(payload.coefOfRestitution +1)*uDOTn*(0);
-                    //     payload.velocity.y += -(payload.coefOfRestitution +1)*uDOTn*(-1);
-                    // }
-                    
 
-                    if (payload.position.y > payload.position.x) {
+                    payload.velocity.y += gravity/(subStepsPerFrame);
+                    payload.position += payload.velocity;
+                    
+                    // Floor collision
+                    if (payload.position.y + payload.radius > floorHeight) { // If below floor
+                        payload.position.y = floorHeight - payload.radius; // Set pos to on floor
+                        payload.velocity.y *= -payload.coefOfRestitution; // Resolve collision
+                    }
+                    
+                    // Left collider collision
+                    if (payload.position.y > payload.position.x) { // If collided
                         cout<<"y>x" <<endl;
                         distToCollider = abs((-payload.position.x+payload.position.y)/sqrt(2)); //fix this!!!!!!
-                        payload.position = payload.position + leftNormal*distToCollider;
-                        payload.velocity = payload.velocity -(payload.coefOfRestitution +1)*(payload.velocity*leftNormal)*leftNormal;
+                        payload.position += leftNormal*distToCollider; // Move to collider exterior surface.
+                        payload.velocity += leftNormal * -(payload.coefOfRestitution +1)*(payload.velocity*leftNormal); // Resolve collision
                     }
-                    // if (payload.position.y > 1000 - payload.position.x) {
-                    //     cout<<"y>1000-x" <<endl;
-                    //     distToCollider = abs((-payload.position.x+payload.position.y-1000)/sqrt(2)); //fix this!!!!!!
-                    //     payload.position += rightNormal*distToCollider;
-                    //     payload.velocity += -(payload.coefOfRestitution +1)*(payload.velocity*rightNormal)*rightNormal;
-                    // }
-                    payload.velocity.x += 0;
-                    payload.velocity.y += gravity/(subStepsPerFrame);
-                    payload.position.x += payload.velocity.x;
-                    payload.position.y += payload.velocity.y;
 
-                    // for all {
-                    //     if collided {
-                    //         new v = calc(v)
-                    //         v = new v
+                    // Right collider collision
+                    if (payload.position.y > 1000 - payload.position.x) {
+                        cout<<"y>1000-x" <<endl;
+                        distToCollider = abs((payload.position.x+payload.position.y-1000)/sqrt(2)); //fix this!!!!!!
+                        payload.position += rightNormal*distToCollider; // Move to collider exterior surface.
+                        payload.velocity += rightNormal * -(payload.coefOfRestitution +1)*(payload.velocity*rightNormal); // Resolve collision
 
-                    //     }
-                    // }
-                    // void Collide(payload, collider) {
-                    //     calc shortest dist
-                    //     move payload in collider normal direction by shortest distance magnitude
-                    //     calculate new v
-                    // }
-
-                    //void hasCollided() {
-                    //     if (distToLineCentre < lineLength + radius) {
-                    //         if (distToLine < radius) {
-                    //             return true;
-                    //         }
-                    //     }
-
-                    //     return false;
-                    // }
-
-                    // void hasCollided(payload, collider) {
-                    //     return if line segments intersect (true/false)
-                    // }
+                    }
 
                 DrawCircle(renderer, payload.position.x, payload.position.y, payload.radius);
                 }
@@ -433,6 +463,13 @@ int main(int argc, char **argv)
                 SDL_RenderDrawLine(renderer, 0, 1000, 1000, 0);
                 //SDL_Delay(140-frameDelayValue);
             }
+
+            // Drawing colliders
+                for(int i =0; i<MAX_STATIC_COLLIDERS; i++) { 
+                    SDL_RenderDrawLine(renderer, staticColliders[i].startPos.x, staticColliders[i].startPos.y, staticColliders[i].endPos.x, staticColliders[i].endPos.y);
+                    isColliding(payload, staticColliders[i]);
+                }
+                
 
             // Draw window titles
                 kiss_makerect(&panelControlsTitleRect, 1220, 4, 120, 15);
@@ -463,4 +500,3 @@ int main(int argc, char **argv)
     kiss_clean(&objects);
     return 0;
 }
-
