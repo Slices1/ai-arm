@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstring> // For strcpy
 #include <cmath> // For trig functions
+#include <algorithm> // for std::max and std::min
 using namespace std;
 
 class Vec2 {
@@ -53,7 +54,7 @@ Vec2 Normalise(Vec2 myVector) {
     return myVector/LengthOfVector(myVector);
 }
 
-Vec2 Perpendicuar(Vec2 myVector) { // 90 degree anti-clockwise rotation
+Vec2 Perpendicular(Vec2 myVector) { // 90 degree anti-clockwise rotation
     return Vec2(-myVector.y, myVector.x);
 }
 
@@ -68,13 +69,14 @@ typedef struct StaticCollider { // must be such that left side of collider is th
     } // constructor
 } StaticCollider;
 
-int main(int argc, char **argv) {
-    Vec2 start = Vec2(0.,0.);
-    Vec2 end = Vec2(1.,2.);
-    StaticCollider myStaticCollider = StaticCollider(start, end);
-    // cout << myStaticCollider.startPos << endl;
-    // cout << myStaticCollider.endPos << endl;
-    cout << myStaticCollider.direction.x << "," << myStaticCollider.direction.y << endl;
-    cout << Perpendicuar(myStaticCollider.direction).x << "," << Perpendicuar(myStaticCollider.direction).y << endl;
+
+
+
+// Driver program to test above functions
+int main() {
+    Vec2 myVec = Vec2(1, 1);
+    myVec = Perpendicular(myVec);
+    cout << myVec.x << ", " << myVec.y <<endl;  
+
     return 0;
 }
