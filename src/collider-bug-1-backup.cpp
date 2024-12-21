@@ -179,7 +179,6 @@
                     };
         
         std::vector<std::shared_ptr<Simulation>> simulations;
-        float debug1;
         // std::vector<NeuralNetwork> neural_networks;
         // std::vector<float> fitness_scores;
         // GeneticAlgorithm genetic_algorithm;
@@ -469,9 +468,9 @@
     class Arm {
         private:
             SimulationContext &simulationContext;
-            std::vector<float> angles; // 0 radians is directly up from the prev linkage. with y-axis down, clockwise is positive
-            std::vector<float> angularVelocities; // with y-axis down, clockwise is positive
-            float constraintAngle = M_PI/3; // max radians from the centre angle.
+            std::vector<float> angles; // 0 radians is directly up from the prev linkage. anticlockwise is positive
+            std::vector<float> angularVelocities; // anticlockwise is positive
+            float contraintAngle = M_PI/2; // max radians from the centre angle.
         public:
             std::vector<std::shared_ptr<Collider>> linkages;
             int numOfLinkages = 5;
@@ -485,55 +484,25 @@
                     angularVelocities.emplace_back(0.0f);
                     linkages.emplace_back(std::make_shared<Collider>(Collider(Vec2(558.0,591-i*linkageLength),Vec2(558.0,591-(i+1)*linkageLength))));
                 }
-                // test temporary displacement
-                angles[numOfLinkages-1] += 0.2f; // remove later
             }
             void update() {
-                Vec2 prevPos = linkages[0]->startPos; // arm to ground attachment point
-                float prevAngle = 0.0f; // base attachment angle
-                for (int i=0; i<numOfLinkages; i++) { // from base link to top link
-                    // apply gravity
-                        for (int j=i; j<numOfLinkages; j++) { //
-                            float centreOfGravity = (linkages[j]->startPos.x + linkages[j]->endPos.x)/2;
-                            angularVelocities[i] += 0.0001*(centreOfGravity - linkages[i]->startPos.x)*simulationContext.gravity/linkageLength;
-                        }
+                
+                // debug1 = atof(inputters[0].entry.text);
+                // rotationSpeed += cos(rotationAngle)*0.07f + -debug1*0.0007f;
+                // rotationSpeed *= 0.98f;
+                // rotationAngle += rotationSpeed;
+                // endEffector.x = 350*cos(rotationAngle) + origin.x;
+                // endEffector.y = 350*sin(rotationAngle) + origin.y;
+                // SDL_RenderDrawLine(renderer, origin.x, origin.y, endEffector.x, endEffector.y);
+                
+                // SDL_Delay(140-frameDelayValue);
 
-                    angularVelocities[i] *= 0.99f; // friction dampening
-                    // update angle
+                for (int i=0; i<numOfLinkages; i++) {
+                    angularVelocities[i] = rand() % 40;
+                    angularVelocities[i] *= 0.5f;
                     angles[i] += angularVelocities[i];
 
-                    // constrain angles
-                        if (angles[i] > constraintAngle) { 
-                            angles[i] = constraintAngle;
-                            angularVelocities[i] = 0.0f;
-                        } else if (angles[i] < -constraintAngle) {
-                            angles[i] = -constraintAngle;
-                            angularVelocities[i] = 0.0f;
-                        }
-
-                    // constrain positions
-                        if (linkages[i]->endPos.y > simulationContext.floorHeight) {
-                            cout << "acos val: " << acos((simulationContext.floorHeight - linkages[i]->startPos.y) / linkageLength) << endl;
-                            angles[i] = M_PI - acos((simulationContext.floorHeight - linkages[i]->startPos.y) / linkageLength) - prevAngle;
-                            angularVelocities[i] = 0.0f;
-                            // apply reaction force
-                            for (int j = 0; j<i; j++) {
-                                angularVelocities[j] *= - 0.5f;
-                            }
-                            // for (int j = i; j<numOfLinkages; j++) {
-                            //     angularVelocities[j] += 0.001f;
-                            // }
-                        }
-
-                    // angles[i] = i*0.65f;
-                    // angles[4] = simulationContext.debug1 - prevAngle;
-
-                    // update positions
-                        linkages[i]->startPos = prevPos; // set start to prev end
-                        linkages[i]->endPos = prevPos + Vec2(linkageLength*sin(angles[i]+prevAngle), -linkageLength*cos(angles[i]+prevAngle)); // find new end
-                        prevPos = linkages[i]->endPos; // store new end
-                        prevAngle += angles[i]; // store new angle
-
+                    linkages[i]->endPos.x = rand() % 40 + 558 - 20;
                 }
 
             }
@@ -623,8 +592,11 @@
                 // Draw payload
                 DrawCircle(renderer, payload.position.x, payload.position.y, payload.radius);
                 // Draw arm
+                int test=0;
                 for (const auto &linkage : arm.linkages) {
                     SDL_RenderDrawLine(renderer, linkage->startPos.x,linkage->startPos.y,linkage->endPos.x,linkage->endPos.y);
+                    cout<<test<<endl;
+                    test++;
                 }
             }
 
@@ -795,7 +767,6 @@
                 //}
             //}
             // Update simulation controls
-                simulationContext.debug1 = atof(guiContext.inputters[0].entry.text);
                 simulationContext.coefOfRestitution = atof(guiContext.inputters[1].entry.text);
                 simulationContext.subSteps = abs(atoi(guiContext.inputters[3].entry.text)) +1;
                 // friction
@@ -868,6 +839,7 @@ int main(int argc, char **argv)
         // show_popup(InitialPopupMessage, guiContext.popupIsActive, guiContext.popupLabel);
     }
     // Add simulations
+    simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
     for (int i=0; i<1; i++) {
         simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
 

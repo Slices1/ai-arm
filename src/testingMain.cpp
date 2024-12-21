@@ -69,14 +69,33 @@ typedef struct StaticCollider { // must be such that left side of collider is th
     } // constructor
 } StaticCollider;
 
+// void incrementBy10(int *input) {
+//     *input += 10;
+// }
+ 
+// void increment(StaticCollider colliders[]) {
+//     for (StaticCollider collider : colliders) {
+//         cout << "collider dir x = " << collider.direction.x << endl;
+//     }
+//     colliders[0].direction.x = 100.;
+// }
 
-
-
-// Driver program to test above functions
 int main() {
-    Vec2 myVec = Vec2(1, 1);
-    myVec = Perpendicular(myVec);
-    cout << myVec.x << ", " << myVec.y <<endl;  
+    StaticCollider colliders[2] = {
+        StaticCollider(Vec2(1,1),Vec2(2,2)),
+        StaticCollider(Vec2(0,0),Vec2(2,3))
+    };
+    // cout << a << endl << "incrementing" << endl;
+    // increment(colliders); 
+    // cout << a << endl;
+    // for (StaticCollider collider : colliders) {
+        // cout << "collider dir x = " << collider.direction.x << endl;
+// 
+// 
+    // }
 
+    float angle = 360.0f; // degrees
+    float limit = 181.0f;
+    cout << "New angle: " << angle % limit <<  endl;
     return 0;
 }
