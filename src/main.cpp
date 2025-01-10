@@ -12,7 +12,7 @@
 // Defines
     #define MAX_INPUTTERS 9
     #define MAX_INFOBUTTONS 3
-    #define MAX_STATIC_COLLIDERS 20
+    #define MAX_STATIC_COLLIDERS 8
 
 // New types
     class Vec2 {
@@ -25,7 +25,7 @@
         }
         
         // Scalar Vector product using operator*
-        public: Vec2 operator*(float other) {
+        Vec2 operator*(float other) {
             return Vec2(x * other, y * other);
         }
 
@@ -51,9 +51,18 @@
             return Vec2(x - other.x, y - other.y);
         }
 
+        // Vec2 unary subtraction using operator-
+        Vec2 operator-() const {
+            return Vec2(-x, -y);
+        }
+
         // Scalar Vector quotient using operator/
-        public: Vec2 operator/(float other) {
+        Vec2 operator/(float other) {
             return Vec2(x / other, y / other);
+        }
+
+        float magnitude_squared() {
+            return x*x + y*y;
         }
     };
 // Utility functions
@@ -136,15 +145,16 @@
     class Simulation; // Forward declaration
 
     struct SimulationContext {
-
         // simulation declerations
             bool simulationIsActive = true;
             bool isTraining = false;
             int subSteps = 2;
-            float gravity = 4.0f;
+            float gravity = 1.2f;
             float coefOfRestitution = 0.7f;
-            float coefOfFriction = 0.95f;
+            float coefOfFriction = 0.92f;
             const int floorHeight = 594-3;
+            float constraintAngle = M_PI/3; // max radians from the centre angle.
+            Vec2 armOriginPos = Vec2(558.0f, 591.0f);
 
             // colliders
                 Collider staticColliders[MAX_STATIC_COLLIDERS] = {
@@ -152,34 +162,35 @@
                     // Collider(Vec2(100.,400.), Vec2(750.,400)),
                     Collider(Vec2(0,125+( rand() % 20 - 10)), Vec2(100,125+( rand() % 20 - 10))),
                     Collider(Vec2(100,250+( rand() % 20 - 10)), Vec2(200,250+( rand() % 20 - 10))),
-                    Collider(Vec2(0,375+( rand() % 20 - 10)), Vec2(100,375+( rand() % 20 - 10))),
-                    Collider(Vec2(100,500+( rand() % 20 - 10)), Vec2(200,500+( rand() % 20 - 10))),
+                    // Collider(Vec2(0,375+( rand() % 20 - 10)), Vec2(100,375+( rand() % 20 - 10))),
+                    // Collider(Vec2(100,500+( rand() % 20 - 10)), Vec2(200,500+( rand() % 20 - 10))),
 
                     Collider(Vec2(0+200,125+( rand() % 20 - 10)), Vec2(100+200,125+( rand() % 20 - 10))),
                     Collider(Vec2(100+200,250+( rand() % 20 - 10)), Vec2(200+200,250+( rand() % 20 - 10))),
-                    Collider(Vec2(0+200,375+( rand() % 20 - 10)), Vec2(100+200,375+( rand() % 20 - 10))),
-                    Collider(Vec2(100+200,500+( rand() % 20 - 10)), Vec2(200+200,500+( rand() % 20 - 10))),
+                    // Collider(Vec2(0+200,375+( rand() % 20 - 10)), Vec2(100+200,375+( rand() % 20 - 10))),
+                    // Collider(Vec2(100+200,500+( rand() % 20 - 10)), Vec2(200+200,500+( rand() % 20 - 10))),
 
-                    Collider(Vec2(0+400,125+( rand() % 20 - 10)), Vec2(100+400,125+( rand() % 20 - 10))),
+                    // Collider(Vec2(0+400,125+( rand() % 20 - 10)), Vec2(100+400,125+( rand() % 20 - 10))),
                     Collider(Vec2(100+400,250+( rand() % 20 - 10)), Vec2(200+400,250+( rand() % 20 - 10))),
-                    Collider(Vec2(0+400,375+( rand() % 20 - 10)), Vec2(100+400,375+( rand() % 20 - 10))),
-                    Collider(Vec2(100+400,500+( rand() % 20 - 10)), Vec2(200+400,500+( rand() % 20 - 10))),
+                    // Collider(Vec2(0+400,375+( rand() % 20 - 10)), Vec2(100+400,375+( rand() % 20 - 10))),
+                    // Collider(Vec2(100+400,500+( rand() % 20 - 10)), Vec2(200+400,500+( rand() % 20 - 10))),
 
-                    Collider(Vec2(0+600,125+( rand() % 20 - 10)), Vec2(100+600,125+( rand() % 20 - 10))),
+                    // Collider(Vec2(0+600,125+( rand() % 20 - 10)), Vec2(100+600,125+( rand() % 20 - 10))),
                     Collider(Vec2(100+600,250+( rand() % 20 - 10)), Vec2(200+600,250+( rand() % 20 - 10))),
-                    Collider(Vec2(0+600,375+( rand() % 20 - 10)), Vec2(100+600,375+( rand() % 20 - 10))),
-                    Collider(Vec2(100+600,500+( rand() % 20 - 10)), Vec2(200+600,500+( rand() % 20 - 10))),
+                    // Collider(Vec2(0+600,375+( rand() % 20 - 10)), Vec2(100+600,375+( rand() % 20 - 10))),
+                    // Collider(Vec2(100+600,500+( rand() % 20 - 10)), Vec2(200+600,500+( rand() % 20 - 10))),
 
                     Collider(Vec2(0+800,125+( rand() % 20 - 10)), Vec2(100+800,125+( rand() % 20 - 10))),
                     Collider(Vec2(100+800,250+( rand() % 20 - 10)), Vec2(200+800,250+( rand() % 20 - 10))),
-                    Collider(Vec2(0+800,375+( rand() % 20 - 10)), Vec2(100+800,375+( rand() % 20 - 10))),
-                    Collider(Vec2(100+800,500+( rand() % 20 - 10)), Vec2(200+800,500+( rand() % 20 - 10))),
+                    // Collider(Vec2(0+800,375+( rand() % 20 - 10)), Vec2(100+800,375+( rand() % 20 - 10))),
+                    // Collider(Vec2(100+800,500+( rand() % 20 - 10)), Vec2(200+800,500+( rand() % 20 - 10))),
 
                     //1116, 594
                     };
         
         std::vector<std::shared_ptr<Simulation>> simulations;
         float debug1;
+        float debug2;
         // std::vector<NeuralNetwork> neural_networks;
         // std::vector<float> fitness_scores;
         // GeneticAlgorithm genetic_algorithm;
@@ -269,9 +280,9 @@
 
             { // initialise control panel
                 //slider values
-                const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Additional Sim Sub Steps (rounded)", "name5", "name6", "name7", "name8", "name9"};
-                const float defaultArray[MAX_INPUTTERS] = {0.0f, 0.9f, 65.0f, 2.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-                const float rangeArray[MAX_INPUTTERS] = {200.0f, 4.0f, 240.0f, 26.0f, 100.0f, 50.0f, 50.0f, 50.0f, 50.0f};
+                const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Coef of Friction", "Gravity", "Coef of Restitution", "Arm Angle Constraints", "name8", "name9"};
+                const float defaultArray[MAX_INPUTTERS] = {     0.0f,                    0.9f,            21.0f,                 0.9f,              1.2f,             0.7f,             M_PI/3,             0.0f,    0.0f};
+                const float rangeArray[MAX_INPUTTERS] = {       200.0f,                  4.0f,            700.0f,                2*0.1f,              10.0f,            2*0.7f,          2*M_PI/3,            50.0f,   50.0f};
 
                 for(int i =0; i<MAX_INPUTTERS; i++) {
                     inputters[i].defaultValue = defaultArray[i];
@@ -340,7 +351,7 @@
 
     // To find orientation of ordered triplet (p, q, r). 
     // The function returns following values 
-    // 0 --> p, q and r are collinear Perpendicuar
+    // 0 --> p, q and r are collinear Perpendicular
     // 1 --> Clockwise 
     // 2 --> Counterclockwise 
     int orientation(const Vec2& p, const Vec2& q, const Vec2& r) {
@@ -365,20 +376,20 @@
             return true;
 
         // Special Cases
-        // p1, q1 and p2 are collinear and p2 lies on segment p1q1
-        if (o1 == 0 && onSegment(p1, p2, q1)) return true;
+        // // p1, q1 and p2 are collinear and p2 lies on segment p1q1
+        // if (o1 == 0 && onSegment(p1, p2, q1)) return true;
 
-        // p1, q1 and q2 are collinear and q2 lies on segment p1q1
-        if (o2 == 0 && onSegment(p1, q2, q1)) return true;
+        // // p1, q1 and q2 are collinear and q2 lies on segment p1q1
+        // if (o2 == 0 && onSegment(p1, q2, q1)) return true;
 
-        // p2, q2 and p1 are collinear and p1 lies on segment p2q2
-        if (o3 == 0 && onSegment(p2, p1, q2)) return true;
+        // // p2, q2 and p1 are collinear and p1 lies on segment p2q2
+        // if (o3 == 0 && onSegment(p2, p1, q2)) return true;
 
-        // p2, q2 and q1 are collinear and q1 lies on segment p2q2
-        if (o4 == 0 && onSegment(p2, q1, q2)) return true;
+        // // p2, q2 and q1 are collinear and q1 lies on segment p2q2
+        // if (o4 == 0 && onSegment(p2, q1, q2)) return true;
 
         return false; // Doesn't fall in any of the above cases
-    }
+    } // doesn't detect all parallel cases atm.
 
 // Simulation classes
 
@@ -471,9 +482,10 @@
             SimulationContext &simulationContext;
             std::vector<float> angles; // 0 radians is directly up from the prev linkage. with y-axis down, clockwise is positive
             std::vector<float> angularVelocities; // with y-axis down, clockwise is positive
-            float constraintAngle = M_PI/3; // max radians from the centre angle.
+            
         public:
             std::vector<std::shared_ptr<Collider>> linkages;
+            Collider endEffector = Collider(Vec2(558.0-linkageLength/2,591-numOfLinkages*linkageLength),Vec2(558+linkageLength/2.0,591-numOfLinkages*linkageLength));
             int numOfLinkages = 5;
             int linkageLength = 90;
 
@@ -483,60 +495,106 @@
                 for (int i=0; i<numOfLinkages; i++) {
                     angles.emplace_back(0.0f);
                     angularVelocities.emplace_back(0.0f);
-                    linkages.emplace_back(std::make_shared<Collider>(Collider(Vec2(558.0,591-i*linkageLength),Vec2(558.0,591-(i+1)*linkageLength))));
+                    linkages.emplace_back(std::make_shared<Collider>(Collider(Vec2(simulationContext.armOriginPos.x, simulationContext.armOriginPos.y-i*linkageLength),Vec2(simulationContext.armOriginPos.x, simulationContext.armOriginPos.y-(i+1)*linkageLength))));
                 }
+                // endEffector = Collider(Vec2(558.0-linkageLength/2,591-numOfLinkages*linkageLength),Vec2(558+linkageLength/2.0,591-numOfLinkages*linkageLength));
                 // test temporary displacement
                 angles[numOfLinkages-1] += 0.2f; // remove later
             }
             void update() {
-                Vec2 prevPos = linkages[0]->startPos; // arm to ground attachment point
-                float prevAngle = 0.0f; // base attachment angle
-                for (int i=0; i<numOfLinkages; i++) { // from base link to top link
-                    // apply gravity
-                        for (int j=i; j<numOfLinkages; j++) { //
+                // resolve gravity from base link to 2nd to last link
+                    for (int i=0; i<numOfLinkages-1; i++) {
+                        // apply the moment induced from this linkage's mass to all joints below this link
+                        for (int j=i; j<numOfLinkages; j++) {
                             float centreOfGravity = (linkages[j]->startPos.x + linkages[j]->endPos.x)/2;
                             angularVelocities[i] += 0.0001*(centreOfGravity - linkages[i]->startPos.x)*simulationContext.gravity/linkageLength;
                         }
+                    }
+                // resolve top link gravity (bc of end effector)
+                    float centreOfGravity = (linkages[numOfLinkages-1]->startPos.x + 3*linkages[numOfLinkages-1]->endPos.x)/4; // centre of gravity x position is 3/4 of the way along the top link because of the end effector.
+                    // apply this moment to all joints as all joints are below this joint so will experience the force
+                    // there is a multiple of 2 since this is the mass of the last link + the mass of the end effector
+                    for (int i=0; i<numOfLinkages; i++) {
+                        angularVelocities[i] += 2*0.0001*(centreOfGravity - linkages[i]->startPos.x)*simulationContext.gravity/linkageLength;
+                    }
+                    // apply offset moment to the top link to avoid it being reaaaaallly slow
+                    angularVelocities[numOfLinkages-1] += 0.0001*(centreOfGravity - linkages[numOfLinkages-1]->startPos.x)*simulationContext.gravity/linkageLength;
+                // apply friction, update and constrain angles based on angular velocities. Also update some positions for calculation purposes
+                    Vec2 prevPos = simulationContext.armOriginPos; // initialised to ground attachment point. Used to calculate relative position of succeeding links.
+                    float prevAngle = 0.0f; // initialised to base attachment angle. Used to calculate relative angle of succeeding links.
+                    for (int i=0; i<numOfLinkages; i++) {
+                        // apply friction damping
+                        angularVelocities[i] *= simulationContext.coefOfRestitution;
+                        // update angles
+                        angles[i] += angularVelocities[i];
 
-                    angularVelocities[i] *= 0.99f; // friction dampening
-                    // update angle
-                    angles[i] += angularVelocities[i];
-
-                    // constrain angles
-                        if (angles[i] > constraintAngle) { 
-                            angles[i] = constraintAngle;
+                        // constrain angles
+                        if (angles[i] > simulationContext.constraintAngle) { 
+                            angles[i] = simulationContext.constraintAngle;
                             angularVelocities[i] = 0.0f;
-                        } else if (angles[i] < -constraintAngle) {
-                            angles[i] = -constraintAngle;
+                        } else if (angles[i] < -simulationContext.constraintAngle) {
+                            angles[i] = -simulationContext.constraintAngle;
                             angularVelocities[i] = 0.0f;
                         }
 
-                    // constrain positions
+                        // update some positions for calculation purposes
+                        // skip calculating 'startPos's because we can just use the previous endPos. 
+                        linkages[i]->endPos = prevPos + Vec2(linkageLength*sin(angles[i]+prevAngle), -linkageLength*cos(angles[i]+prevAngle)); // find new end
+                        prevPos = linkages[i]->endPos; // store new end
+                        prevAngle += angles[i];
+                    }
+                // constrain positions from base link to 2nd to last link
+                    prevAngle = 0.0f; // initialised to base attachment angle. Used to calculate relative angle of succeeding links.
+                    for (int i=0; i<numOfLinkages-1; i++) {
                         if (linkages[i]->endPos.y > simulationContext.floorHeight) {
-                            cout << "acos val: " << acos((simulationContext.floorHeight - linkages[i]->startPos.y) / linkageLength) << endl;
-                            angles[i] = M_PI - acos((simulationContext.floorHeight - linkages[i]->startPos.y) / linkageLength) - prevAngle;
+                            float displacement = linkages[i]->endPos.x - linkages[0]->startPos.x; // find which side we are on
+                            int direction = (displacement > 0) - (displacement < 0); // direction is 1 if we're on right side and -1 if we're on left side.
+                            // calculate new angle such that the endPos is on the floor, not under.
+                            angles[i] = direction*(M_PI - acos((simulationContext.floorHeight - linkages[i-1]->endPos.y) / linkageLength)) - prevAngle;
                             angularVelocities[i] = 0.0f;
                             // apply reaction force
                             for (int j = 0; j<i; j++) {
                                 angularVelocities[j] *= - 0.5f;
                             }
-                            // for (int j = i; j<numOfLinkages; j++) {
-                            //     angularVelocities[j] += 0.001f;
-                            // }
                         }
+                        prevAngle += angles[i];
+                    }
+                // constrain position for top link (bc of end effector)
+                    // check if end effector is below floor
+                    if (linkages[numOfLinkages-1]->endPos.y + abs(Perpendicular(linkages[numOfLinkages-1]->direction).y*linkageLength/2) > simulationContext.floorHeight) {
+                        float displacement = linkages[numOfLinkages-1]->endPos.x - linkages[0]->startPos.x; // find which side we are on
+                        int direction = (displacement > 0) - (displacement < 0); // direction is 1 if we're on right side and -1 if we're on left side.
+                        // calculate new angle such that the endPos is on the floor, not under.
+                        // I use linkages[numOfLinkages-2]->endPos.y as it is the y-value of the height above the floor. I make it relative to the simulation floor using floorHeight.
+                        angles[numOfLinkages-1] = direction*(M_PI - acos((simulationContext.floorHeight - linkages[numOfLinkages-2]->endPos.y - abs(Perpendicular(linkages[numOfLinkages-1]->direction).y*linkageLength/2)) / linkageLength)) - prevAngle;
+                        angularVelocities[numOfLinkages-1] = 0.0f;
+                        // apply reaction force
+                        for (int j = 0; j<numOfLinkages; j++) {
+                            angularVelocities[j] *= - 0.99f;
+                        }
+                    }
 
-                    // angles[i] = i*0.65f;
-                    // angles[4] = simulationContext.debug1 - prevAngle;
-
-                    // update positions
+                // update positions for real
+                    prevPos = simulationContext.armOriginPos; // initialised to ground attachment point. Used to calculate relative position of succeeding links.
+                    prevAngle = 0.0f; // initialised to base attachment angle. Used to calculate relative angle of succeeding links.
+                    for (int i=0; i<numOfLinkages; i++) {
                         linkages[i]->startPos = prevPos; // set start to prev end
                         linkages[i]->endPos = prevPos + Vec2(linkageLength*sin(angles[i]+prevAngle), -linkageLength*cos(angles[i]+prevAngle)); // find new end
-                        prevPos = linkages[i]->endPos; // store new end
-                        prevAngle += angles[i]; // store new angle
-
-                }
-
+                        prevPos = linkages[i]->endPos;
+                        prevAngle += angles[i];
+                    }
+                    endEffector.startPos = linkages[numOfLinkages-1]->endPos + Vec2(3*sin(prevAngle),-3*cos(prevAngle)) + Perpendicular(linkages[numOfLinkages-1]->direction)*linkageLength/2;
+                    endEffector.endPos = linkages[numOfLinkages-1]->endPos   + Vec2(3*sin(prevAngle),-3*cos(prevAngle)) - Perpendicular(linkages[numOfLinkages-1]->direction)*linkageLength/2;
+                updateColliders(); // updates directions for payload collision purposes
             }
+
+            void updateColliders() {
+                for (int i=0; i<numOfLinkages; i++) {
+                    linkages[i]->direction = Normalise(linkages[i]->endPos - linkages[i]->startPos);
+                }
+                endEffector.direction = Normalise(endEffector.endPos - endEffector.startPos);
+            }
+
         private:
         
     };
@@ -544,6 +602,8 @@
     class Payload {
         private:
             SimulationContext &simulationContext;
+            Vec2 directionFromIntersectedCollider; // used for collision resolution
+            float displacementIntoCollider; // used for collision resolution
         public:
             int radius = 30;
             Vec2 prevPosition;
@@ -565,6 +625,7 @@
                 if (lineSegmentsIntersect(prevPosition, adjustedPayloadPos, expandedStartPos, expandedEndPos)) {return true;}
                 return false;
             } // collider.direction must be a unit vector
+
             void ballToStaticColliderCollision(Collider collider) {
                 float displacementIntoCollider = radius - pointToColliderDisplacement(position, collider);
                 Vec2 normal = Perpendicular(collider.direction);
@@ -572,15 +633,68 @@
                 velocity += normal * -(simulationContext.coefOfRestitution +1)*(velocity*normal); // Resolve collision
             }
 
+            bool isCollidingVer2(Collider collider) {
+                // could instead find the closest point on the payloard to the collider and check if the adjusted circle path intersects collider.
+                // can then use the direction to direct the collision rebound. this would create a capsule effect.
+                // this would remove the need for the expanded collider path, thus fixing my collision jank issues.
+                // the colliders would go from rectangles to capsules as they should.
+
+                // how do I know which of the 3 values to use?
+                // I shall retain most of the previous logic but replace the expanded end positions to the above method
+
+                // the reason for the ordering being end point, middle section, start point is because the end point needs priority for when touching the the end effector.
+
+                Vec2 directionToColliderEndPos = Normalise(collider.endPos - position);
+                Vec2 adjustedPayloadPos = position + directionToColliderEndPos*radius;
+                if (lineSegmentsIntersect(prevPosition, adjustedPayloadPos, collider.endPos, collider.startPos)) {
+                    // also have to return the direction of the payload centre to the closest point on collider if it is colliding.
+                    directionFromIntersectedCollider = - directionToColliderEndPos;
+                    displacementIntoCollider = LengthOfVector(collider.endPos - adjustedPayloadPos);
+                    return true;
+                }
+
+                // condition: adjusted point path intersects collider or centre path intersects collider
+                adjustedPayloadPos = position - Perpendicular(collider.direction)*radius;
+                if (lineSegmentsIntersect(prevPosition, adjustedPayloadPos, collider.startPos, collider.endPos)
+                    || lineSegmentsIntersect(prevPosition, position, collider.startPos, collider.endPos)) {
+                    directionFromIntersectedCollider = Perpendicular(collider.direction);
+                    displacementIntoCollider = radius - pointToColliderDisplacement(position, collider);
+                    return true;
+                }
+                
+                // condition: adjusted point path intersects collider ends
+                Vec2 directionToColliderStartPos = Normalise(collider.startPos - position);
+                adjustedPayloadPos = position + directionToColliderStartPos*radius;
+                if (lineSegmentsIntersect(prevPosition, adjustedPayloadPos, collider.endPos, collider.startPos)) {
+                    // also have to return the direction of the payload centre to the closest point on collider if it is colliding.
+                    directionFromIntersectedCollider = - directionToColliderStartPos;
+                    displacementIntoCollider = LengthOfVector(collider.startPos - adjustedPayloadPos);
+                    return true;
+                }
+
+                return false;
+            } // collider.direction must be a unit vector
+
+            void ballToStaticColliderCollisionVer2(Collider collider) {
+                Vec2 normal = directionFromIntersectedCollider;
+                position += normal*displacementIntoCollider; // Move to collider exterior surface.
+                // cout << "Normal: " << normal.x << ", " << normal.y << endl;
+                velocity += normal * -(simulationContext.coefOfRestitution +1)*(velocity*normal); // Resolve collision
+            }
         public:
             Payload(SimulationContext &mySimulationContext) : simulationContext(mySimulationContext) {
-                position.x= rand() % 1000;
-                position.y=radius;
+                position.x=radius + 100; //rand() % 1000;
+                position.y=radius + 230;
+                velocity.x = 4.0f;
             }
-            void update() {
-
+            void update(Arm &arm) {
+                    // Carry out Semi-Implicit Euler Integration
                     prevPosition = position;
-                    velocity.y += simulationContext.gravity/(simulationContext.subSteps);
+                    velocity.y += simulationContext.gravity;
+                    // Apply electromagnet force proportional to end effector direction and 1/r^2
+                    Vec2 displacementToEndEffector = arm.linkages[arm.numOfLinkages-1]->endPos - position;
+                    velocity += Normalise(displacementToEndEffector) * 7000.0f / (displacementToEndEffector.magnitude_squared() + 100.0f);
+                    // cout << displacementToEndEffector.magnitude_squared() << endl;
                     position += velocity;
                     
                     // Floor collision
@@ -589,23 +703,41 @@
                         velocity.y *= -simulationContext.coefOfRestitution; // Resolve collision
                         velocity.x *= simulationContext.coefOfFriction; // friction
                     }
-                    if (position.x < radius) { // If below floor
-                        position.x = radius; // Set pos to on floor
+                    // Left wall collision
+                    if (position.x < radius) { // If left of left wall
+                        position.x = radius; // Set pos to left wall
                         velocity.x *= -simulationContext.coefOfRestitution; // Resolve collision
                     }
-                    if (position.y < radius) { // If below floor
-                        position.y = radius; // Set pos to on floor
+                    // Ceiling collision
+                    if (position.y < radius) { // If above ceiling
+                        position.y = radius; // Set pos to ceiling
                         velocity.y *= -simulationContext.coefOfRestitution; // Resolve collision
                     }
-                    if (position.x > 1116 - radius) { // If below floor
-                        position.x = 1116 - radius; // Set pos to on floor
+                    // Right wall collision
+                    if (position.x > 1116 - radius) { // If right of right wall
+                        position.x = 1116 - radius; // Set pos to right wall
                         velocity.x *= -simulationContext.coefOfRestitution; // Resolve collision
                     }
-                    for(int i =0; i<MAX_STATIC_COLLIDERS; i++) {
-                        if (isColliding(simulationContext.staticColliders[i])) {
-                            ballToStaticColliderCollision(simulationContext.staticColliders[i]);
+                    for(int i = 0; i<MAX_STATIC_COLLIDERS; i++) {
+                        if (isCollidingVer2(simulationContext.staticColliders[i])) {
+                            ballToStaticColliderCollisionVer2(simulationContext.staticColliders[i]);
                         }
                     }
+                    // arm collisions. arm collider directions have already been updated.
+                    // skip the last one to avoid jank physics.
+                    for (const auto &linkage : arm.linkages) {
+                        if (isCollidingVer2(*linkage)) {
+                            ballToStaticColliderCollisionVer2(*linkage);
+                        }
+                    }
+                    // end effector collision
+                    if (isCollidingVer2(arm.endEffector)) {
+                            ballToStaticColliderCollisionVer2(arm.endEffector);
+                            // friction
+                            velocity = velocity*simulationContext.coefOfFriction;
+                    }
+
+                    // end effector collision
             }
         
     };
@@ -614,6 +746,8 @@
         private:
             SimulationContext &simulationContext;
             Arm arm;
+
+        public:
             Payload payload;
             bool is_done_flag = false;
 
@@ -625,7 +759,13 @@
                 // Draw arm
                 for (const auto &linkage : arm.linkages) {
                     SDL_RenderDrawLine(renderer, linkage->startPos.x,linkage->startPos.y,linkage->endPos.x,linkage->endPos.y);
+                    // code to show expanded collider for collision detection for debugging
+                    // Vec2 expandedStartPos = linkage->startPos - linkage->direction*payload.radius;
+                    // Vec2 expandedEndPos = linkage->endPos + linkage->direction*payload.radius;
+                    // SDL_RenderDrawLine(renderer, expandedStartPos.x,expandedStartPos.y,expandedEndPos.x,expandedEndPos.y);
                 }
+                // Draw end effector
+                SDL_RenderDrawLine(renderer, arm.endEffector.startPos.x,arm.endEffector.startPos.y,arm.endEffector.endPos.x,arm.endEffector.endPos.y);
             }
 
         //     void reset() {
@@ -641,12 +781,10 @@
         //     }
 
             void advance() {
-                // Advance simulation by one time step (e.g., apply physics, update states)
-                for (int step = 0; step<1; step++) {
-                    payload.update();
-                    arm.update();
-                }
-                // check_done_conditions();
+                payload.update(arm);
+                arm.update();
+            
+                // if training repeat for xyz frames, if displaying then end
             }
 
         //     bool is_done() const {
@@ -796,12 +934,24 @@
             //}
             // Update simulation controls
                 simulationContext.debug1 = atof(guiContext.inputters[0].entry.text);
-                simulationContext.coefOfRestitution = atof(guiContext.inputters[1].entry.text);
-                simulationContext.subSteps = abs(atoi(guiContext.inputters[3].entry.text)) +1;
+                simulationContext.debug2 = atof(guiContext.inputters[1].entry.text);
+                simulationContext.coefOfFriction = atof(guiContext.inputters[3].entry.text);
+                simulationContext.gravity = atof(guiContext.inputters[4].entry.text);
+                simulationContext.coefOfRestitution = atof(guiContext.inputters[5].entry.text);
+                simulationContext.constraintAngle = abs(atof(guiContext.inputters[6].entry.text));
+                
                 // friction
                 // coef e
-                // gravity
                 // 
+                // move payload to clicked pos
+                if (guiContext.e.type == SDL_MOUSEBUTTONDOWN) {
+                    if (guiContext.e.button.button == SDL_BUTTON_LEFT && guiContext.e.button.x < 1116 && guiContext.e.button.y < 594) {
+                        simulationContext.simulations[0]->payload.position = Vec2(guiContext.e.button.x,guiContext.e.button.y);
+                        simulationContext.simulations[0]->payload.velocity = Vec2(0,0);
+                        
+                    }
+                }
+
         }
     }
     void draw_frame(GUIContext &guiContext, SimulationContext &simulationContext) {
@@ -858,7 +1008,6 @@
 //
 int main(int argc, char **argv)
 {
-
     GUIContext guiContext = GUIContext();
     SimulationContext simulationContext = SimulationContext();
     {
@@ -872,8 +1021,6 @@ int main(int argc, char **argv)
         simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
 
     }
-    // simulationContext.simulations[1].payload.position.x = 700;
-
 
     while (!guiContext.quit) { // Loop
         // Fps handling
@@ -906,3 +1053,4 @@ int main(int argc, char **argv)
     kiss_clean(&guiContext.objects);
     return 0;
 }
+

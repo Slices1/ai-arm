@@ -80,6 +80,49 @@ typedef struct StaticCollider { // must be such that left side of collider is th
 //     colliders[0].direction.x = 100.;
 // }
 
+class Date {
+    public:
+        int day, month, year;
+        Date(int day1, int month1, int year1) {
+            day = day1;
+            month = month1;
+            year = year1;
+        }
+    int daysSince1970() {
+        int days = 0;
+        for (int i = 1970; i < year; i++) {
+            days += 365;
+            if (i % 4 == 0) {
+                days += 1;
+            }
+        }
+        for (int i = 1; i < month; i++) {
+            if (i == 2) {
+                days += 28;
+                if (year % 4 == 0) {
+                    days += 1;
+                }
+            } else if (i == 4 || i == 6 || i == 9 || i == 11) {
+                days += 30;
+            } else {
+                days += 31;
+            }
+        }
+        days += day;
+        return days;
+    }
+};
+
+int calculate_days_between_dates(Date date1, Date date2) {
+    const int oneDay = 24 * 60 * 60 * 1000; // hours*minutes*seconds*milliseconds
+    const int firstDate = date1.daysSince1970();
+    const int secondDate = date2.daysSince1970();
+    const int diffDays = (firstDate - secondDate);
+    return diffDays;
+}
+
+
+
 int main() {
     StaticCollider colliders[2] = {
         StaticCollider(Vec2(1,1),Vec2(2,2)),
@@ -94,8 +137,9 @@ int main() {
 // 
     // }
 
-    float angle = 360.0f; // degrees
-    float limit = 181.0f;
-    cout << "New angle: " << angle % limit <<  endl;
+    // float angle = 360.0f; // degrees
+    // float limit = 181.0f;
+    // cout << "New angle: " << angle % limit <<  endl;
+    cout << calculate_days_between_dates(Date(2,5,1986), Date(25,12,2024)) << endl;
     return 0;
 }
