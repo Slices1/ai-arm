@@ -3,7 +3,7 @@ C = gcc
 
 LDFLAGS = -lSDL2 -lSDL2_image -lSDL2_ttf
 CFLAGS = -Wall -c -std=c89
-CXXFLAGS = -Wall -c -std=c++17   # C++ flags for compiling my C++ code.
+CXXFLAGS = -Wall -c -Og -std=c++17   # C++ flags for compiling my C++ code.
 
 BIN1 = main
 
