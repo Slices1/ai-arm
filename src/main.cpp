@@ -157,7 +157,7 @@
             float constraintAngle = M_PI/3; // max radians from the centre angle.
             Vec2 armOriginPos = Vec2(558.0f, 591.0f);
             int radius = 30; // payload radius
-            int numOfLinkages = 5; // Arm linkage count
+            const int numOfLinkages = 5; // Arm linkage count
             int linkageLength = 90; // Arm linkage length
 
             // colliders
@@ -195,29 +195,30 @@
         std::vector<std::shared_ptr<Simulation>> simulations;
         float debug1;
         float debug2;
-        // std::vector<NeuralNetwork> neural_networks;
-        // std::vector<float> fitness_scores;
-        // GeneticAlgorithm genetic_algorithm;
+        // unused stuff. (init NN, GA, simulations)
+            // std::vector<NeuralNetwork> neural_networks;
+            // std::vector<float> fitness_scores;
+            // GeneticAlgorithm genetic_algorithm;
 
-        // int population_size;
-        // int current_generation;
-        
+            // int population_size;
+            // int current_generation;
+            
 
 
-        // SimulationContext(int population_size, float mutation_rate, float crossover_rate)
-        //     : population_size(population_size),
-        //     genetic_algorithm(mutation_rate, crossover_rate),
-        //     current_generation(0) {
-        //     // Initialize simulations and neural networks
-        //     for (int i = 0; i < population_size; ++i) {
-        //         simulations.emplace_back(9.8f); // Example: 9.8 for gravity
-        //         neural_networks.emplace_back(10, 2); // Example: 10 inputs, 2 outputs
-        //     }
-        //     // fitness_scores.resize(population_size, 0.0f);
+            // SimulationContext(int population_size, float mutation_rate, float crossover_rate)
+            //     : population_size(population_size),
+            //     genetic_algorithm(mutation_rate, crossover_rate),
+            //     current_generation(0) {
+            //     // Initialize simulations and neural networks
+            //     for (int i = 0; i < population_size; ++i) {
+            //         simulations.emplace_back(9.8f); // Example: 9.8 for gravity
+            //         neural_networks.emplace_back(10, 2); // Example: 10 inputs, 2 outputs
+            //     }
+            //     // fitness_scores.resize(population_size, 0.0f);
 
-        //     payload.position.x = 300;
-        //     payload.position.y = 30;
-        // }
+            //     payload.position.x = 300;
+            //     payload.position.y = 30;
+            // }
     };
 
     struct GUIContext {
@@ -284,7 +285,7 @@
 
             { // initialise control panel
                 //slider values
-                const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Coef of Friction", "Gravity", "Coef of Restitution", "Arm Angle Constraints", "Radius", "Linkage Count (1-8)", "Linkage Length", "name11", "name12"};
+                const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Coef of Friction", "Gravity", "Coef of Restitution", "Arm Angle Constraints", "Radius", "name9", "Linkage Length", "name11", "name12"};
                 const float defaultArray[MAX_INPUTTERS] = {     0.0f,                    0.9f,            21.0f,                 0.9f,              1.2f,             0.7f,             M_PI/3,             30.0f,       5.0f,               90.0f,    0.0f, 0.0f};
                 const float rangeArray[MAX_INPUTTERS] = {       200.0f,                  4.0f,            700.0f,                2*0.1f,              10.0f,            2*0.7f,          2*M_PI/3,          2*30.0f,     2*5.0f,           2*90.0f,  50.0f, 50.0f};
 
@@ -394,47 +395,81 @@
 
         return false; // Doesn't fall in any of the above cases
     } // doesn't detect all parallel cases atm.
+// Neural Network classes
 
-// Simulation classes
- // NN
-    // class NeuralNetwork {
-    //     private:
-    //         std::vector<std::vector<float>> weights; // 2D vector for weights
-    //         std::vector<float> biases;              // Biases for each layer
-    //         size_t input_size;
-    //         size_t output_size;
+    // numNeurons - number of neurons in the current layer
+    // numInputNeurons - number of neurons in the previous layer
+    template<int numNeurons, int numInputNeurons>
+    class Layer {
+        public:
+        private:
+            float weights[numNeurons][numInputNeurons];
+            float biases[numNeurons];
+        public:
+            Layer() {
+                // initialise random weights and biases
+                for (int i=0; i<numNeurons; i++) {
+                    for (int j=0; j<numInputNeurons; j++) {
+                        // weights from -1 to 1
+                        weights[i][j] = (rand() % 200 - 100)/100.0f;
+                    }
+                    // biases from -1 to 1
+                    biases[i] = (rand() % 200 - 100)/100.0f;
+                }
+            }
 
-    //     public:
-    //         NeuralNetwork(size_t input_size, size_t output_size)
-    //             : input_size(input_size), output_size(output_size) {
-    //             initialize();
-    //         }
+            float *CalculateLayerOutput(float inputs[]) {
+                // initialise output tensor
+                float outputs[numNeurons];
+                // add the weighted sum of inputs and the biases
+                for (int currentNode=0; currentNode<numNeurons; currentNode++) { // check if correct !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    cout << "DEBUG: the following should be 0. if it is we can remove a line: " << outputs[currentNode] << endl;
+                    outputs[currentNode] = 0.0f; // init to 0 just in case // could also init to the biases if faster.
+                    for (int currentInputNode=0; currentInputNode<numInputNeurons; currentInputNode++) {
+                        outputs[currentNode] += weights[currentNode][currentInputNode]*inputs[currentInputNode];
+                    }
+                    outputs[currentNode] += biases[currentNode];
+                }
+                // returns decayed pointer to outputs arrayx
+                return outputs;
+            }
+    };
+    template<int numLayers> // 3 layers: hidden, hidden, output. input is not technically a layer here.
+    class NeuralNetwork {
+        private:
+            Layer layers[numLayers];
+            SimulationContext &simulationContext;
 
-    //         std::vector<float> predict(const std::vector<float> &inputs) const {
-    //             std::vector<float> activations = inputs;
+        public:
+            NeuralNetwork(SimulationContext &mySimulationContext) : simulationContext(mySimulationContext) {
+                // inputs: end effector-payload displacement. angles & velos for each joint. whether end effector is on or not. payload-targetPos displacement.
+                // numOfLinkages must be constant because of this...
+                int numInputs = 2 + 2*simulationContext.numOfLinkages + 1 + 2;
+                int numOutputs = simulationContext.numOfLinkages; // each output is the angular force on a joint.
+                int numberOfNeurons[numLayers+1] = {numInputs, 6, 5, numOutputs};
+                // initialise layers array
+                for (i=0; i<numLayers; i++) {
+                    layers[i] = Layer<numberOfNeurons[i], numberOfNeurons[i+1]> Layer();
+                }
+            }
 
-    //             // Perform feedforward pass
-    //             for (size_t i = 0; i < weights.size(); ++i) {
-    //                 activations = activate(dot(weights[i], activations) + biases[i]);
-    //             }
+            float[] CalculateOutputs(float inputs[]) {
+                int numOutputs = simulationContext.numOfLinkages;
+                // inputs is changing length. how do I account for this?
+                // my layers only get smaller so may be fine
+                for (int i=0; i<numLayers; i++) {
+                    // feed the outputs back in as inputs
+                    // the Layer class knows the length of inputs so the decay to a pointer doesn't matter
+                    inputs = layers[i].CalculateLayerOutput(inputs);
+                }
+                return inputs;
+            }
 
-    //             return activations;
-    //         }
+        private:
 
-    //     private:
-    //         void initialize() {
-    //             // Randomly initialize weights and biases
-    //         }
-
-    //         std::vector<float> dot(const std::vector<float> &weights, const std::vector<float> &inputs) const {
-    //             // Compute dot product
-    //         }
-
-    //         std::vector<float> activate(const std::vector<float> &values) const {
-    //             // Apply activation function (e.g., ReLU or sigmoid)
-    //         }
-    // };
+    };
  //
+// Simulation classes
     class Arm {
         private:
             SimulationContext &simulationContext;
@@ -896,7 +931,7 @@
                 simulationContext.coefOfRestitution = atof(guiContext.inputters[5].entry.text);
                 simulationContext.constraintAngle = abs(atof(guiContext.inputters[6].entry.text));
                 simulationContext.radius = abs(atoi(guiContext.inputters[7].entry.text));
-                simulationContext.numOfLinkages = atoi(guiContext.inputters[8].entry.text);
+                // simulationContext.numOfLinkages = atoi(guiContext.inputters[8].entry.text);
                 simulationContext.linkageLength = abs(atoi(guiContext.inputters[9].entry.text))+1;
 
                 // friction
