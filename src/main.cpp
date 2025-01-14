@@ -459,7 +459,8 @@
                 // my layers only get smaller so may be fine
                 for (int i=0; i<numLayers; i++) {
                     // feed the outputs back in as inputs
-                    // the Layer class knows the length of inputs so the decay to a pointer doesn't matter
+                    // the Layer objects know the length of their and outputs so the decay to a pointer doesn't matter
+                    // the layer sizes can only decrease with this model though.
                     inputs = layers[i].CalculateLayerOutput(inputs);
                 }
                 return inputs;
