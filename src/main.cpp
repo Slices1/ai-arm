@@ -6,7 +6,9 @@
     #include <cmath> // For trig functions
     #include <algorithm> // For std::max and std::min
     #include <random> // For testing
+    // #include <ctime>   // Needed for time() for random seed
     #include <memory> // for vectors ::make_shared
+    
     using namespace std;
 
 // Defines
@@ -142,6 +144,62 @@
             direction = Normalise(endPos - startPos);
         } // constructor
     } Collider;
+// Neural Network classes
+    class Layer {
+        private:
+            int numNeurons; // number of neurons in the current layer
+            int numInputNeurons; // number of neurons in the previous layer
+            std::vector<std::vector<float>> weights;
+            std::vector<float> biases;
+
+        public:
+            // Constructor - biases gets initialised with length numNeurons and weights gets initialised with dimensions numNeurons x numInputNeurons
+            Layer(int numInputNeurons, int numNeurons) : numNeurons(numNeurons), numInputNeurons(numInputNeurons),
+                                    weights(numNeurons, std::vector<float>(numInputNeurons)), biases(numNeurons) {
+                // Initialise random weights and biases from -1.00 to 1.00
+                for (int i = 0; i < numNeurons; i++) {
+                    for (int j = 0; j < numInputNeurons; j++) {
+                        weights[i][j] = (rand() % 200 - 100) / 100.0f;
+                    }
+                    biases[i] = (rand() % 200 - 100) / 100.0f;
+                }
+            }
+
+            std::vector<float> CalculateLayerOutput(const std::vector<float>& inputs) {
+                std::vector<float> outputs(numNeurons, 0.0f); // initialise output tensor with all 0s
+                for (int i = 0; i < numNeurons; i++) {
+                    // add the weighted sums of inputs
+                    for (int j = 0; j < numInputNeurons; j++) {
+                        outputs[i] += weights[i][j] * inputs[j];
+                    }
+                    // add biases
+                    outputs[i] += biases[i];
+                }   
+                return outputs;
+            }
+    };
+    class NeuralNetwork {
+        private:
+            const int numLayers = 3; // 3 layers: hidden, hidden, output. input is not technically a layer here.
+            std::vector<std::shared_ptr<Layer>> layers;
+
+        public:
+        NeuralNetwork(const int numInputs, const int numOutputs) {
+            const int numberOfNeurons[numLayers+1] = {numInputs, 6, 5, numOutputs};
+            // initialise layers tensor
+            for (int i = 0; i < numLayers; i++) {
+                layers.push_back(std::make_shared<Layer>(numberOfNeurons[i], numberOfNeurons[i + 1]));
+            }
+        }
+
+        std::vector<float> CalculateOutputs(std::vector<float>& inputs) {
+            for (auto& layer : layers) {
+                // feed the outputs back in as inputs
+                inputs = layer->CalculateLayerOutput(inputs);
+            }
+            return inputs;
+        }
+    };
 
 // Contexts
     class Simulation; // Forward declaration
@@ -195,8 +253,8 @@
         std::vector<std::shared_ptr<Simulation>> simulations;
         float debug1;
         float debug2;
-        // unused stuff. (init NN, GA, simulations)
-            // std::vector<NeuralNetwork> neural_networks;
+        // NeuralNetwork, GeneticAlgorithm
+            std::vector<std::shared_ptr<NeuralNetwork>> neuralNetworks;
             // std::vector<float> fitness_scores;
             // GeneticAlgorithm genetic_algorithm;
 
@@ -209,10 +267,10 @@
             //     : population_size(population_size),
             //     genetic_algorithm(mutation_rate, crossover_rate),
             //     current_generation(0) {
-            //     // Initialize simulations and neural networks
+            //     // Initialise simulations and neural networks
             //     for (int i = 0; i < population_size; ++i) {
             //         simulations.emplace_back(9.8f); // Example: 9.8 for gravity
-            //         neural_networks.emplace_back(10, 2); // Example: 10 inputs, 2 outputs
+            //         neuralNetworks.emplace_back(10, 2); // Example: 10 inputs, 2 outputs
             //     }
             //     // fitness_scores.resize(population_size, 0.0f);
 
@@ -395,89 +453,15 @@
 
         return false; // Doesn't fall in any of the above cases
     } // doesn't detect all parallel cases atm.
-// Neural Network classes
-
-    // numNeurons - number of neurons in the current layer
-    // numInputNeurons - number of neurons in the previous layer
-    template<int numNeurons, int numInputNeurons>
-    class Layer {
-        public:
-        private:
-            float weights[numNeurons][numInputNeurons];
-            float biases[numNeurons];
-        public:
-            Layer() {
-                // initialise random weights and biases
-                for (int i=0; i<numNeurons; i++) {
-                    for (int j=0; j<numInputNeurons; j++) {
-                        // weights from -1 to 1
-                        weights[i][j] = (rand() % 200 - 100)/100.0f;
-                    }
-                    // biases from -1 to 1
-                    biases[i] = (rand() % 200 - 100)/100.0f;
-                }
-            }
-
-            float *CalculateLayerOutput(float inputs[]) {
-                // initialise output tensor
-                float outputs[numNeurons];
-                // add the weighted sum of inputs and the biases
-                for (int currentNode=0; currentNode<numNeurons; currentNode++) { // check if correct !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                    cout << "DEBUG: the following should be 0. if it is we can remove a line: " << outputs[currentNode] << endl;
-                    outputs[currentNode] = 0.0f; // init to 0 just in case // could also init to the biases if faster.
-                    for (int currentInputNode=0; currentInputNode<numInputNeurons; currentInputNode++) {
-                        outputs[currentNode] += weights[currentNode][currentInputNode]*inputs[currentInputNode];
-                    }
-                    outputs[currentNode] += biases[currentNode];
-                }
-                // returns decayed pointer to outputs arrayx
-                return outputs;
-            }
-    };
-    template<int numLayers> // 3 layers: hidden, hidden, output. input is not technically a layer here.
-    class NeuralNetwork {
-        private:
-            Layer layers[numLayers];
-            SimulationContext &simulationContext;
-
-        public:
-            NeuralNetwork(SimulationContext &mySimulationContext) : simulationContext(mySimulationContext) {
-                // inputs: end effector-payload displacement. angles & velos for each joint. whether end effector is on or not. payload-targetPos displacement.
-                // numOfLinkages must be constant because of this...
-                int numInputs = 2 + 2*simulationContext.numOfLinkages + 1 + 2;
-                int numOutputs = simulationContext.numOfLinkages; // each output is the angular force on a joint.
-                int numberOfNeurons[numLayers+1] = {numInputs, 6, 5, numOutputs};
-                // initialise layers array
-                for (i=0; i<numLayers; i++) {
-                    layers[i] = Layer<numberOfNeurons[i], numberOfNeurons[i+1]> Layer();
-                }
-            }
-
-            float[] CalculateOutputs(float inputs[]) {
-                int numOutputs = simulationContext.numOfLinkages;
-                // inputs is changing length. how do I account for this?
-                // my layers only get smaller so may be fine
-                for (int i=0; i<numLayers; i++) {
-                    // feed the outputs back in as inputs
-                    // the Layer objects know the length of their and outputs so the decay to a pointer doesn't matter
-                    // the layer sizes can only decrease with this model though.
-                    inputs = layers[i].CalculateLayerOutput(inputs);
-                }
-                return inputs;
-            }
-
-        private:
-
-    };
  //
 // Simulation classes
     class Arm {
         private:
             SimulationContext &simulationContext;
-            std::vector<float> angles; // 0 radians is directly up from the prev linkage. with y-axis down, clockwise is positive
-            std::vector<float> angularVelocities; // with y-axis down, clockwise is positive
             
         public:
+            std::vector<float> angles; // 0 radians is directly up from the prev linkage. with y-axis down, clockwise is positive
+            std::vector<float> angularVelocities; // with y-axis down, clockwise is positive
             std::vector<std::shared_ptr<Collider>> linkages;
             Collider endEffector = Collider(Vec2(558.0-simulationContext.linkageLength/2,591-simulationContext.numOfLinkages*simulationContext.linkageLength),Vec2(558+simulationContext.linkageLength/2.0,591-simulationContext.numOfLinkages*simulationContext.linkageLength));
 
@@ -737,9 +721,8 @@
     class Simulation {
         private:
             SimulationContext &simulationContext;
-            Arm arm;
-
         public:
+            Arm arm;
             Payload payload;
             bool is_done_flag = false;
 
@@ -798,7 +781,83 @@
         //         // Set is_done_flag based on termination criteria (e.g., time limit, success condition)
         //     }
     };
+// Neural Network Manager
+    void advanceNN(SimulationContext &simulationContext) {
+        for (int i=0; i<1; i++) {
+            // find inputs:
+            // end effector-payload displacement
+            // payload target displacement, and relative velo
+            // angles & velos for each joint
+            // payload-targetPos displacement.
+            Vec2 payloadDisplacementToEndEffector = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
+            Vec2 payloadDisplacementToTarget = Vec2(1000.0f, simulationContext.floorHeight) - simulationContext.simulations[i]->payload.position;
+            vector<float> inputs = {payloadDisplacementToEndEffector.x, payloadDisplacementToEndEffector.y,
+                                    payloadDisplacementToTarget.x, payloadDisplacementToTarget.y,
+                                    simulationContext.simulations[i]->payload.velocity.x, simulationContext.simulations[i]->payload.velocity.y};
+            for (int j=0; j<5; j++) {
+                inputs.push_back(simulationContext.simulations[i]->arm.angles[j]);
+                inputs.push_back(simulationContext.simulations[i]->arm.angularVelocities[j]);
+            }
 
+            // vector<float> inputs = {simulationContext.debug1, simulationContext.debug2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+            
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << "inputs " << i << ":" << endl;
+            for (int j=0; j<16; j++) {
+                cout << inputs[j] << endl;
+            }
+
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            // calculate outputs
+            vector<float> outputs = simulationContext.neuralNetworks[i]->CalculateOutputs(inputs);
+            cout << "outputs " << i << ":" << endl;
+            // tanh(x) and round outputs before displaying
+            for (int j=0; j<5; j++) {
+                outputs[j] = 0.01*(pow(2,outputs[j]/100)-1)/(pow(2,outputs[j]/100)+1);
+                cout << std::floor(outputs[j]*1000)/1000 << endl;
+            }
+            // apply force outputs
+            for (int j=0; j<simulationContext.numOfLinkages; j++) {
+                // apply force
+                simulationContext.simulations[i]->arm.angularVelocities[j] += outputs[j];
+            }
+
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+            cout << endl;
+        }
+    }
 // Event handlers
     void button_event(kiss_button &button, SDL_Event &e, int &draw, int &quit, int &myCounter)
     {
@@ -1007,14 +1066,20 @@ int main(int argc, char **argv)
     SimulationContext simulationContext = SimulationContext();
     {
         if (!guiContext.renderer) {cout << "Renderer init failed"; return 1;}
+        srand(23483);
         
         // string InitialPopupMessage = "            Welcome to Jonah's\n      Computer Science NEA Project\n      AI Controlled Manipulator Arm\n         (That you can train)!\n\nOverview:\nThis GUI is split into 3 separate panels.\n\nThe simulation panel displayes the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel.\n\nClick the ?s to find out more.";
         // show_popup(InitialPopupMessage, guiContext.popupIsActive, guiContext.popupLabel);
     }
-    // Add simulations
-    for (int i=0; i<1; i++) {
-        simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
-
+    { // Add simulations
+        // inputs: payload Displacement To End Effector. payload Displacement To Target. payload velocity. angles & velos for each joint.
+        const int numInputs = 2 + 2 + 2 + 2*simulationContext.numOfLinkages;
+        const int numOutputs = simulationContext.numOfLinkages; // each output is the angular force on a joint.
+        for (int i=0; i<1; i++) {
+            simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
+            
+            simulationContext.neuralNetworks.push_back(std::make_shared<NeuralNetwork>(numInputs, numOutputs));
+        }
     }
 
     while (!guiContext.quit) { // Loop
@@ -1040,6 +1105,7 @@ int main(int argc, char **argv)
             for (const auto &simulation : simulationContext.simulations) {
                 simulation->advance();
             }
+            advanceNN(simulationContext);
             guiContext.draw = true;
         }
         
@@ -1050,3 +1116,10 @@ int main(int argc, char **argv)
 }
 
 // consider removing simulationIsActive and draw booleans
+
+
+
+
+
+
+
