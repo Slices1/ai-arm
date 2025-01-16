@@ -216,8 +216,8 @@
     class Simulation; // Forward declaration
 
     struct SimulationContext {
-        const int numInstances = 20; // the number of simulations/NNs that will be stored at once.
-        const int maxTrainingFrames = 900; // the number of frames that the simulation will run for each training instance.
+        const int numInstances = 1000; // the number of simulations/NNs that will be stored at once.
+        const int maxTrainingFrames = 15*45; // 15 seconds // the number of frames that the simulation will run for each training instance.
         // simulation declerations
             bool isTraining = false;
             float gravity = 1.2f;
@@ -310,6 +310,8 @@
             kiss_entry showEveryNthGenerationEntry = {0};
             bool trainingPopupIsActive = false;
             kiss_button buttonStartTraining = {0};
+            kiss_button buttonStopTraining = {0};
+            kiss_label labelStopTraining = {0};
 
         // pop up
             bool popupIsActive = false;
@@ -372,11 +374,14 @@
                 
                 // Add start training gui elements
                     buttonStartTrainingPopupY = yPos -3;
-                    kiss_label_new(&labelStartTraining, &panelControls, "Start Training", inputterX, yPos-3);
-                    kiss_button_new(&buttonStartTrainingPopup, &panelControls, "Start", inputterX, kiss_textfont.fontheight+yPos-3);
+                    kiss_label_new(&labelStartTraining, &panelControls, "Start Training", inputterX, buttonStartTrainingPopupY);
+                    kiss_button_new(&buttonStartTrainingPopup, &panelControls, "Start", inputterX, kiss_textfont.fontheight+buttonStartTrainingPopupY);
                     kiss_button_new(&buttonStartTraining, &panelControls, "Train", kiss_screen_width/2 - 30, kiss_screen_height/2 + 120 - 2*kiss_textfont.fontheight);
-                    
-                
+                    yPos += inputterYSpacing;
+                    //buttonStopTraining
+                    kiss_label_new(&labelStopTraining, &panelControls, "Stop Training", inputterX, buttonStartTrainingPopupY);
+                    kiss_button_new(&buttonStopTraining, &panelControls, "Stop", inputterX, kiss_textfont.fontheight+buttonStartTrainingPopupY);
+
                 kiss_vscrollbar_new(&controlPanelScrollbar, &panelControls, 1440 - 20, 10, 810-10*2);
             }
 
@@ -819,64 +824,66 @@
                 inputs.push_back(simulationContext.simulations[i]->arm.angles[j]);
                 inputs.push_back(simulationContext.simulations[i]->arm.angularVelocities[j]);
             }            
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << "inputs " << i << ":" << endl;
-            for (int j=0; j<16; j++) {
-                cout << inputs[j] << endl;
-            }
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << "inputs " << i << ":" << endl;
+            // for (int j=0; j<16; j++) {
+            //     cout << inputs[j] << endl;
+            // }
 
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
             // calculate outputs
             vector<float> outputs = simulationContext.neuralNetworks[i]->CalculateOutputs(inputs);
-            cout << "outputs " << i << ":" << endl;
-            // restrict and round outputs before displaying
-            for (int j=0; j<5; j++) {
-                cout << std::floor(outputs[j]*10000)/10000 << endl;
-                outputs[j] *= 0.01;
-            }
+            // cout << "outputs " << i << ":" << endl;
+            // // restrict and round outputs before displaying
+            // for (int j=0; j<5; j++) {
+            //     cout << std::floor(outputs[j]*10000)/10000 << endl;
+            //     outputs[j] *= 0.01;
+            // }
 
             // apply force outputs
             for (int j=0; j<simulationContext.numOfLinkages; j++) {
                 // apply force
-                simulationContext.simulations[i]->arm.angularVelocities[j] += outputs[j];
+                simulationContext.simulations[i]->arm.angularVelocities[j] += outputs[j]*0.01;
             }
-
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
-            cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
+            // cout << endl;
         }
     }
+    // void evolve(SimulationContext &simulationContext) {
+        
+    // }
 // Event handlers
     void button_event(kiss_button &button, SDL_Event &e, int &draw, int &quit, int &myCounter)
     {
@@ -920,6 +927,10 @@
             guiContext.buttonStartTrainingPopup.rect.y = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier + 6;
             guiContext.buttonStartTrainingPopup.texty = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier + 6 + 2;
             guiContext.labelStartTraining.rect.y = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier - 10;
+
+            guiContext.buttonStopTraining.rect.y = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier + 6;
+            guiContext.buttonStopTraining.texty = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier + 6 + 2;
+            guiContext.labelStopTraining.rect.y = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier - 10;
 
             guiContext.draw = true;
         }
@@ -970,7 +981,7 @@
     void start_training_popup_button_event(GUIContext &guiContext) {
         if (kiss_button_event(&guiContext.buttonStartTrainingPopup, &guiContext.e, &guiContext.draw)) {
             // show popup
-            show_popup("Please enter the training options:\n\nTrain for           generations.\n\nShow every           th generation.\n\n\nEach generation takes the simulation\n20 seconds real time or max 0.5 seconds\ntraining time.\n\nThere will be a button to stop the\ntraining session early.", guiContext.popupIsActive, guiContext.popupLabel);
+            show_popup("Please enter the training options:\n\nTrain for           generations.\n\nShow every           th generation.\n\n-1 to not show anything.\n\n\nEach generation takes the simulation\n20 seconds real time or max 0.5 seconds\ntraining time.\n\nThere will be a button to stop the\ntraining session early.", guiContext.popupIsActive, guiContext.popupLabel);
             // change popup "Okay" button text to "Cancel"
             string newText = "Cancel";
             snprintf(guiContext.popupButton.text, sizeof(guiContext.popupButton.text), "%s", newText.c_str());
@@ -989,7 +1000,20 @@
         }
     }
 
+    void stop_training_button_event(GUIContext &guiContext, SimulationContext &simulationContext) {
+        if (kiss_button_event(&guiContext.buttonStopTraining, &guiContext.e, &guiContext.draw)) {
+            simulationContext.numOfGenerationsToTrain = 0;
+            simulationContext.isTraining = false; 
+        }
+    }
+
 // Main loop function
+    void check_if_program_quitted(GUIContext &guiContext) {
+        if (guiContext.quit) {
+            kiss_clean(&guiContext.objects);
+            exit(0);
+        }
+    }
     void handle_fps(GUIContext &guiContext) {
         // Calculate FPS
             guiContext.fpsFrameCount++;
@@ -1019,8 +1043,12 @@
                 entry_event(guiContext.inputters[i], guiContext.e, guiContext.draw);
             }
             control_panel_slider_event(guiContext);
-            // start training popup events
-                start_training_popup_button_event(guiContext);
+            // start/stop training popup events
+                if (simulationContext.isTraining) {
+                    stop_training_button_event(guiContext, simulationContext);
+                } else {
+                    start_training_popup_button_event(guiContext);
+                }
                 if (guiContext.trainingPopupIsActive) {
                     // trainForNGenerationsEntry, showEveryNthGenerationEntry events
                     kiss_entry_event(&guiContext.trainForNGenerationsEntry, &guiContext.e, &guiContext.draw);
@@ -1066,13 +1094,21 @@
                 simulationContext.radius = abs(atoi(guiContext.inputters[7].entry.text));
                 // simulationContext.numOfLinkages = atoi(guiContext.inputters[8].entry.text);
                 simulationContext.linkageLength = abs(atoi(guiContext.inputters[9].entry.text))+1;
+                // move payload to clicked pos
+                if (guiContext.e.type == SDL_MOUSEBUTTONDOWN && simulationContext.isTraining == false) {
+                    if (guiContext.e.button.button == SDL_BUTTON_LEFT && guiContext.e.button.x < 1116 && guiContext.e.button.y < 594) {
+                        simulationContext.simulations[0]->payload.position = Vec2(guiContext.e.button.x,guiContext.e.button.y);
+                        simulationContext.simulations[0]->payload.velocity = Vec2(0,0);
+                        
+                    }
+                }
         }
     }
     void draw_gui(GUIContext &guiContext, SimulationContext &simulationContext) {
-        SDL_RenderClear(guiContext.renderer);
         // Draw windows, misc sdl
-            kiss_window_draw(&guiContext.window, guiContext.renderer);
-            kiss_window_draw(&guiContext.panelSimulation, guiContext.renderer);
+            // these 2 windows get drawn before the simulation so they are behind it.
+                // kiss_window_draw(&guiContext.window, guiContext.renderer);
+                // kiss_window_draw(&guiContext.panelSimulation, guiContext.renderer);
             kiss_window_draw(&guiContext.panelGraphs, guiContext.renderer);
             kiss_window_draw(&guiContext.panelControls, guiContext.renderer);
             //kiss_button_draw(&guiContext.button, guiContext.renderer);
@@ -1090,7 +1126,8 @@
             for(int i =0; i<MAX_STATIC_COLLIDERS; i++) { 
                 SDL_RenderDrawLine(guiContext.renderer, simulationContext.staticColliders[i].startPos.x, simulationContext.staticColliders[i].startPos.y, simulationContext.staticColliders[i].endPos.x, simulationContext.staticColliders[i].endPos.y);
             }
-
+        // Draw simulations
+            
         // Draw window titles
             kiss_makerect(&guiContext.panelControlsTitleRect, 1220, 4, 120, 15);
             kiss_fillrect(guiContext.renderer, &guiContext.panelControlsTitleRect, kiss_white);
@@ -1110,35 +1147,48 @@
                 kiss_label_draw(&guiContext.popupLabel, guiContext.renderer);
                 kiss_button_draw(&guiContext.popupButton, guiContext.renderer);
             }
-        // Draw start training button and popup
-            kiss_button_draw(&guiContext.buttonStartTrainingPopup, guiContext.renderer);
-            kiss_label_draw(&guiContext.labelStartTraining, guiContext.renderer);
+        // Draw start/stop training button and popup
+            if (simulationContext.isTraining) {
+                kiss_button_draw(&guiContext.buttonStopTraining, guiContext.renderer);
+                kiss_label_draw(&guiContext.labelStopTraining, guiContext.renderer);
+            } else {
+                kiss_button_draw(&guiContext.buttonStartTrainingPopup, guiContext.renderer);
+                kiss_label_draw(&guiContext.labelStartTraining, guiContext.renderer);
+            }
             if (guiContext.trainingPopupIsActive) {
                 // draw trainForNGenerationsEntry, showEveryNthGenerationEntry, buttonStartTraining
                 kiss_entry_draw(&guiContext.trainForNGenerationsEntry, guiContext.renderer);
                 kiss_entry_draw(&guiContext.showEveryNthGenerationEntry, guiContext.renderer);
                 kiss_button_draw(&guiContext.buttonStartTraining, guiContext.renderer);
-            }
+            } 
         // Drawing FPS counter
             kiss_label_draw(&guiContext.fpsLabel, guiContext.renderer);
 
+        SDL_RenderPresent(guiContext.renderer);
         guiContext.draw = false;
     }
+    void draw_gui_beneath_simulation(GUIContext &guiContext) {
+        SDL_RenderClear(guiContext.renderer);
+        kiss_window_draw(&guiContext.window, guiContext.renderer);
+        kiss_window_draw(&guiContext.panelSimulation, guiContext.renderer);
+    }
+
 // Driver code loops
 void display_generation_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
     for (int i=0; i<simulationContext.maxTrainingFrames; i++) {
         handle_fps(guiContext);
-        draw_gui(guiContext, simulationContext);
+        draw_gui_beneath_simulation(guiContext);
         // set colour black
         SDL_SetRenderDrawColor(guiContext.renderer, 0, 0, 0, 255);
-        for (const auto &simulation : simulationContext.simulations) {
-            simulation->advance();
+        for (int j=0; j<simulationContext.numInstances; j++) {
+            simulationContext.simulations[j]->advance();
             // simulation->calculateFitness();
-            simulation->draw_simulation_objects(guiContext.renderer);
+            if ((j%200)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
         }
         applyNeuralNetworkOutputsToSimulations(simulationContext, simulationContext.numInstances);
         handle_events_and_inputs(guiContext, simulationContext);
-        SDL_RenderPresent(guiContext.renderer);
+        check_if_program_quitted(guiContext);
+        draw_gui(guiContext, simulationContext);
     }
 }
 
@@ -1158,28 +1208,24 @@ void training_loop(GUIContext &guiContext, SimulationContext &simulationContext,
     for (const auto &simulation : simulationContext.simulations) {
         simulation->reset();
     }
+    // draw gui beneath so we clear the frame from the popup.
+    draw_gui_beneath_simulation(guiContext);
     // show every nth generation fully. Otherwise, train ASAP.
-    if ((i % simulationContext.showEveryNthGeneration) == 0) {
+    if (((i % simulationContext.showEveryNthGeneration) == 0) && (simulationContext.showEveryNthGeneration != -1)) {
         display_generation_loop(guiContext, simulationContext);
     } else {
         train1GenerationASAP(simulationContext);
     }
-    // evolve();
+    // evolve(simulationContext);
 
     draw_gui(guiContext, simulationContext);
-    SDL_RenderPresent(guiContext.renderer);
     handle_events_and_inputs(guiContext, simulationContext);
+    check_if_program_quitted(guiContext);
 }
+
 void idle_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
     handle_fps(guiContext);
     handle_events_and_inputs(guiContext, simulationContext);
-    // move payload to clicked pos
-        if (guiContext.e.type == SDL_MOUSEBUTTONDOWN) {
-            if (guiContext.e.button.button == SDL_BUTTON_LEFT && guiContext.e.button.x < 1116 && guiContext.e.button.y < 594) {
-                simulationContext.simulations[0]->payload.position = Vec2(guiContext.e.button.x,guiContext.e.button.y);
-                simulationContext.simulations[0]->payload.velocity = Vec2(0,0); 
-            }
-        }
     // start training if button is pressed otherwise just show simulation 0.
     if (simulationContext.isTraining) {
         // train the specified num of generations
@@ -1189,8 +1235,7 @@ void idle_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
         // once training is done, reset the training bool
         simulationContext.isTraining = false;
     } else {
-        // draw gui first so simulation is on top.
-        draw_gui(guiContext, simulationContext);
+        draw_gui_beneath_simulation(guiContext);
         // advance the first simulation
         simulationContext.simulations[0]->advance();
         // pass in 1 to the instancesToAdvance parameter to only do the first simulation.
@@ -1198,9 +1243,9 @@ void idle_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
         // draw the simulation objects
         simulationContext.simulations[0]->draw_simulation_objects(guiContext.renderer);
     }
-    // render the frame
-    SDL_RenderPresent(guiContext.renderer);
+    draw_gui(guiContext, simulationContext);
 }
+
 int main(int argc, char **argv)
 {
     // Initialise
