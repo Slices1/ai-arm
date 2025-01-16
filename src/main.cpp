@@ -216,9 +216,9 @@
     class Simulation; // Forward declaration
 
     struct SimulationContext {
-        const int numInstances = 2; // the number of simulations/NNs that will be stored at once.
+        const int numInstances = 20; // the number of simulations/NNs that will be stored at once.
+        const int maxTrainingFrames = 900; // the number of frames that the simulation will run for each training instance.
         // simulation declerations
-            bool simulationIsActive = true;
             bool isTraining = false;
             float gravity = 1.2f;
             float coefOfRestitution = 0.7f;
@@ -229,6 +229,7 @@
             int radius = 30; // payload radius
             const int numOfLinkages = 5; // Arm linkage count
             int linkageLength = 90; // Arm linkage length
+            Vec2 payloadSpawnPosition = Vec2(radius + 100, floorHeight - radius);
 
             // colliders
                 Collider staticColliders[MAX_STATIC_COLLIDERS] = {
@@ -596,7 +597,7 @@
             float displacementIntoCollider; // used for collision resolution
         public:
             Vec2 prevPosition;
-            Vec2 position;
+            Vec2 position = simulationContext.payloadSpawnPosition;
             Vec2 velocity;
 
         
@@ -738,11 +739,12 @@
         public:
             Arm arm;
             Payload payload;
-            bool is_done_flag = false;
 
         public:
             Simulation(SimulationContext &mySimulationContext) : simulationContext(mySimulationContext), arm(mySimulationContext), payload(mySimulationContext) {}
             void draw_simulation_objects(SDL_Renderer *renderer) {
+                // set draw colour to black
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
                 // Draw payload
                 DrawCircle(renderer, payload.position.x, payload.position.y, simulationContext.radius);
                 // Draw arm
@@ -761,7 +763,6 @@
         //         // Reset arm, payload, and other simulation variables
         //         arm.reset();
         //         payload.reset();
-        //         is_done_flag = false;
         //     }
 
         //     void apply_controls(const std::vector<float> &controls) {
@@ -775,9 +776,20 @@
                 // if training repeat for xyz frames, if displaying then end
             }
 
-        //     bool is_done() const {
-        //         return is_done_flag;
-        //     }
+            void reset() {
+                // Reset arm, payload, and other simulation variables
+                    // arm
+                        // reset angles and angular velocities
+                        for (int i=0; i<simulationContext.numOfLinkages; i++) {
+                            arm.angles[i] = 0.0f;
+                            arm.angularVelocities[i] = 0.0f;
+                        }
+                    // payload
+                        // reset position and velocity
+                        payload.position = simulationContext.payloadSpawnPosition;
+                        payload.velocity = Vec2(0.0f, 0.0f);
+            }
+
 
         //     float calculate_fitness() const {
         //         // Compute fitness based on simulation goals (e.g., payload position, energy usage)
@@ -789,14 +801,10 @@
         //         return arm.get_state();
         //     }
 
-        // private:
-        //     void check_done_conditions() {
-        //         // Set is_done_flag based on termination criteria (e.g., time limit, success condition)
-        //     }
     };
-// Neural Network Manager
-    void advanceNN(SimulationContext &simulationContext) {
-        for (int i=0; i<simulationContext.numInstances; i++) {
+// Neural Network Management
+    void applyNeuralNetworkOutputsToSimulations(SimulationContext &simulationContext, int instancesToAdvance) {
+        for (int i=0; i<instancesToAdvance; i++) {
             // find inputs:
             // end effector-payload displacement
             // payload-targetPos displacement.
@@ -977,12 +985,24 @@
             simulationContext.numOfGenerationsToTrain = atoi(guiContext.trainForNGenerationsEntry.text);
             simulationContext.showEveryNthGeneration = atoi(guiContext.showEveryNthGenerationEntry.text);
             disable_popup(guiContext);
+            simulationContext.isTraining = true; // can't call training_loop() from here as we'd get circular dependency
         }
     }
 
-
-//
 // Main loop function
+    void handle_fps(GUIContext &guiContext) {
+        // Calculate FPS
+            guiContext.fpsFrameCount++;
+            if (guiContext.ticksLastTime < SDL_GetTicks() - 1000)
+            {
+                guiContext.ticksLastTime = SDL_GetTicks();
+                guiContext.fpsCurrent = guiContext.fpsFrameCount;
+                guiContext.fpsFrameCount = 0;
+                sprintf(guiContext.fpsLabel.text, "FPS: %d", guiContext.fpsCurrent);
+            }
+        // Frame delay    
+            SDL_Delay(guiContext.frameDelay);
+    }
     void handle_events_and_inputs(GUIContext &guiContext, SimulationContext &simulationContext) {
         while (SDL_PollEvent(&guiContext.e)) { // Inputs, Events
             if (guiContext.e.type == SDL_QUIT) guiContext.quit = true;
@@ -1046,22 +1066,9 @@
                 simulationContext.radius = abs(atoi(guiContext.inputters[7].entry.text));
                 // simulationContext.numOfLinkages = atoi(guiContext.inputters[8].entry.text);
                 simulationContext.linkageLength = abs(atoi(guiContext.inputters[9].entry.text))+1;
-
-                // friction
-                // coef e
-                // 
-                // move payload to clicked pos
-                if (guiContext.e.type == SDL_MOUSEBUTTONDOWN) {
-                    if (guiContext.e.button.button == SDL_BUTTON_LEFT && guiContext.e.button.x < 1116 && guiContext.e.button.y < 594) {
-                        simulationContext.simulations[0]->payload.position = Vec2(guiContext.e.button.x,guiContext.e.button.y);
-                        simulationContext.simulations[0]->payload.velocity = Vec2(0,0);
-                        
-                    }
-                }
-
         }
     }
-    void draw_frame(GUIContext &guiContext, SimulationContext &simulationContext) {
+    void draw_gui(GUIContext &guiContext, SimulationContext &simulationContext) {
         SDL_RenderClear(guiContext.renderer);
         // Draw windows, misc sdl
             kiss_window_draw(&guiContext.window, guiContext.renderer);
@@ -1077,15 +1084,12 @@
             kiss_label_draw(&guiContext.inputters[i].label, guiContext.renderer);
         }
         kiss_vscrollbar_draw(&guiContext.controlPanelScrollbar, guiContext.renderer);
-        // Draw simulations
-            for (const auto &simulation : simulationContext.simulations) {
-                simulation->draw_simulation_objects(guiContext.renderer);
-            }
         // Drawing colliders
+            // set draw colour black
+            SDL_SetRenderDrawColor(guiContext.renderer, 0, 0, 0, 255);
             for(int i =0; i<MAX_STATIC_COLLIDERS; i++) { 
                 SDL_RenderDrawLine(guiContext.renderer, simulationContext.staticColliders[i].startPos.x, simulationContext.staticColliders[i].startPos.y, simulationContext.staticColliders[i].endPos.x, simulationContext.staticColliders[i].endPos.y);
             }
-            
 
         // Draw window titles
             kiss_makerect(&guiContext.panelControlsTitleRect, 1220, 4, 120, 15);
@@ -1118,60 +1122,115 @@
         // Drawing FPS counter
             kiss_label_draw(&guiContext.fpsLabel, guiContext.renderer);
 
-        SDL_RenderPresent(guiContext.renderer);
         guiContext.draw = false;
     }
-//
+// Driver code loops
+void display_generation_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
+    for (int i=0; i<simulationContext.maxTrainingFrames; i++) {
+        handle_fps(guiContext);
+        draw_gui(guiContext, simulationContext);
+        // set colour black
+        SDL_SetRenderDrawColor(guiContext.renderer, 0, 0, 0, 255);
+        for (const auto &simulation : simulationContext.simulations) {
+            simulation->advance();
+            // simulation->calculateFitness();
+            simulation->draw_simulation_objects(guiContext.renderer);
+        }
+        applyNeuralNetworkOutputsToSimulations(simulationContext, simulationContext.numInstances);
+        handle_events_and_inputs(guiContext, simulationContext);
+        SDL_RenderPresent(guiContext.renderer);
+    }
+}
+
+void train1GenerationASAP(SimulationContext &simulationContext) {
+    for (int i=0; i<simulationContext.maxTrainingFrames; i++) {
+        for (const auto &simulation : simulationContext.simulations) {
+            simulation->advance();
+            // simulation->calculateFitness();
+        }
+        applyNeuralNetworkOutputsToSimulations(simulationContext, simulationContext.numInstances);
+    }
+}
+
+void training_loop(GUIContext &guiContext, SimulationContext &simulationContext, int i) {
+    handle_fps(guiContext);
+    // reset all simulations
+    for (const auto &simulation : simulationContext.simulations) {
+        simulation->reset();
+    }
+    // show every nth generation fully. Otherwise, train ASAP.
+    if ((i % simulationContext.showEveryNthGeneration) == 0) {
+        display_generation_loop(guiContext, simulationContext);
+    } else {
+        train1GenerationASAP(simulationContext);
+    }
+    // evolve();
+
+    draw_gui(guiContext, simulationContext);
+    SDL_RenderPresent(guiContext.renderer);
+    handle_events_and_inputs(guiContext, simulationContext);
+}
+void idle_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
+    handle_fps(guiContext);
+    handle_events_and_inputs(guiContext, simulationContext);
+    // move payload to clicked pos
+        if (guiContext.e.type == SDL_MOUSEBUTTONDOWN) {
+            if (guiContext.e.button.button == SDL_BUTTON_LEFT && guiContext.e.button.x < 1116 && guiContext.e.button.y < 594) {
+                simulationContext.simulations[0]->payload.position = Vec2(guiContext.e.button.x,guiContext.e.button.y);
+                simulationContext.simulations[0]->payload.velocity = Vec2(0,0); 
+            }
+        }
+    // start training if button is pressed otherwise just show simulation 0.
+    if (simulationContext.isTraining) {
+        // train the specified num of generations
+        for (int i=0; i<simulationContext.numOfGenerationsToTrain; i++) {
+            training_loop(guiContext, simulationContext, i);
+        }
+        // once training is done, reset the training bool
+        simulationContext.isTraining = false;
+    } else {
+        // draw gui first so simulation is on top.
+        draw_gui(guiContext, simulationContext);
+        // advance the first simulation
+        simulationContext.simulations[0]->advance();
+        // pass in 1 to the instancesToAdvance parameter to only do the first simulation.
+        applyNeuralNetworkOutputsToSimulations(simulationContext, 1);
+        // draw the simulation objects
+        simulationContext.simulations[0]->draw_simulation_objects(guiContext.renderer);
+    }
+    // render the frame
+    SDL_RenderPresent(guiContext.renderer);
+}
 int main(int argc, char **argv)
 {
-        // Initialise
-        GUIContext guiContext = GUIContext();
-        SimulationContext simulationContext = SimulationContext();
-        {
+    // Initialise
+        // Init Contexts
+            GUIContext guiContext = GUIContext();
+            SimulationContext simulationContext = SimulationContext();
+        { // Init GUI
             if (!guiContext.renderer) {cout << "Renderer init failed"; return 1;}    
             // string InitialPopupMessage = "            Welcome to Jonah's\n      Computer Science NEA Project\n      AI Controlled Manipulator Arm\n         (That you can train)!\n\nOverview:\nThis GUI is split into 3 separate panels.\n\nThe simulation panel displayes the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel.\n\nClick the ?s to find out more.";
             // show_popup(InitialPopupMessage, guiContext.popupIsActive, guiContext.popupLabel);
         }
-    { // Add simulations
-        // inputs: payload Displacement To End Effector. payload Displacement To Target. payload velocity. angles & velos for each joint.
-        const int numInputs = 2 + 2 + 2 + 2*simulationContext.numOfLinkages;
-        const int numOutputs = simulationContext.numOfLinkages; // each output is the angular force on a joint.
-        for (int i=0; i<simulationContext.numInstances; i++) {
-            simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
-            
-            simulationContext.neuralNetworks.push_back(std::make_shared<NeuralNetwork>(numInputs, numOutputs));
-        }
-    }
-
-    while (!guiContext.quit) { // Loop
-        // Fps handling
-            guiContext.fpsFrameCount++;
-            if (guiContext.ticksLastTime < SDL_GetTicks() - 1000)
-            {
-                guiContext.ticksLastTime = SDL_GetTicks();
-                guiContext.fpsCurrent = guiContext.fpsFrameCount;
-                guiContext.fpsFrameCount = 0;
-                sprintf(guiContext.fpsLabel.text, "FPS: %d", guiContext.fpsCurrent);
+        { // Add Simulations
+            // inputs: payload Displacement To End Effector. payload Displacement To Target. payload velocity. angles & velos for each joint.
+            const int numInputs = 2 + 2 + 2 + 2*simulationContext.numOfLinkages;
+            const int numOutputs = simulationContext.numOfLinkages; // each output is the angular force on a joint.
+            for (int i=0; i<simulationContext.numInstances; i++) {
+                simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
+                
+                simulationContext.neuralNetworks.push_back(std::make_shared<NeuralNetwork>(numInputs, numOutputs));
             }
-            // Frame delay    
-            SDL_Delay(guiContext.frameDelay);
-
-        handle_events_and_inputs(guiContext, simulationContext);
-
-
-        if (simulationContext.isTraining) {
-            // train_generation(); // trains one generation ASAP
-            // display_generation(); // goes into a separate loop
-        } else if (simulationContext.simulationIsActive) {
-            for (const auto &simulation : simulationContext.simulations) {
-                simulation->advance();
-            }
-            advanceNN(simulationContext);
-            guiContext.draw = true;
         }
-        
-        if (guiContext.draw) draw_frame(guiContext, simulationContext);
+
+    // Main loop
+    while (!guiContext.quit) {
+        // idle_loop() runs the main loop where no training is happening and just the best arm is being displayed.
+        // idle_loop() will call training_loop() if the start training button is pressed.
+        // training_loop() will run the training process.
+        idle_loop(guiContext, simulationContext);
     }
+    // Program closing. Clean before exit.
     kiss_clean(&guiContext.objects);
     return 0;
 }
