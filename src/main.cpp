@@ -6,7 +6,7 @@
     #include <cmath> // For trig functions
     #include <algorithm> // For std::max and std::min
     #include <random> // For testing
-    // #include <ctime>   // Needed for time() for random seed
+    #include <ctime>   // Needed for time() for random seed
     #include <memory> // for vectors ::make_shared
     
     using namespace std;
@@ -119,6 +119,15 @@
 
         }
     }
+
+    float optimisedTanh(float x) {
+        // return 1 or -1 if x is 20 from 0, respectively
+        // this prevents temp evaluating to nan for large x values and optimises the function
+        if (x > 20) {return 1;}
+        if (x < -20) {return -1;}
+        float temp = pow(2, x); // optimisation since I dont think pow() is memoised
+        return (temp - 1) / (temp + 1);
+    }
 // Structs
     typedef struct {
         kiss_hscrollbar slider;
@@ -174,7 +183,9 @@
                     }
                     // add biases
                     outputs[i] += biases[i];
-                }   
+                    outputs[i] = optimisedTanh(outputs[i]); // apply activation function
+
+                }
                 return outputs;
             }
     };
@@ -205,6 +216,7 @@
     class Simulation; // Forward declaration
 
     struct SimulationContext {
+        const int numInstances = 2; // the number of simulations/NNs that will be stored at once.
         // simulation declerations
             bool simulationIsActive = true;
             bool isTraining = false;
@@ -255,28 +267,10 @@
         float debug2;
         // NeuralNetwork, GeneticAlgorithm
             std::vector<std::shared_ptr<NeuralNetwork>> neuralNetworks;
-            // std::vector<float> fitness_scores;
-            // GeneticAlgorithm genetic_algorithm;
-
-            // int population_size;
-            // int current_generation;
+            int numOfGenerationsToTrain;
+            int showEveryNthGeneration; // the n value in 'display simulations every nth generation'
             
 
-
-            // SimulationContext(int population_size, float mutation_rate, float crossover_rate)
-            //     : population_size(population_size),
-            //     genetic_algorithm(mutation_rate, crossover_rate),
-            //     current_generation(0) {
-            //     // Initialise simulations and neural networks
-            //     for (int i = 0; i < population_size; ++i) {
-            //         simulations.emplace_back(9.8f); // Example: 9.8 for gravity
-            //         neuralNetworks.emplace_back(10, 2); // Example: 10 inputs, 2 outputs
-            //     }
-            //     // fitness_scores.resize(population_size, 0.0f);
-
-            //     payload.position.x = 300;
-            //     payload.position.y = 30;
-            // }
     };
 
     struct GUIContext {
@@ -305,9 +299,16 @@
             int inputterX = 1116 + 10;
             int inputterY = 50;
             Inputter inputters[MAX_INPUTTERS]; 
-
-        // control panel slider declerations
+        // control panel misc declerations
             kiss_vscrollbar controlPanelScrollbar;
+        // control panel start training declerations
+            kiss_button buttonStartTrainingPopup;
+            kiss_label labelStartTraining = {0};
+            int buttonStartTrainingPopupY;
+            kiss_entry trainForNGenerationsEntry = {0};
+            kiss_entry showEveryNthGenerationEntry = {0};
+            bool trainingPopupIsActive = false;
+            kiss_button buttonStartTraining = {0};
 
         // pop up
             bool popupIsActive = false;
@@ -328,6 +329,8 @@
 
         // Constructor
         GUIContext() {
+            // initialise random seed
+                srand(time(0));
             {// initialise renderer, windows
                 kiss_array_new(&objects);
                 renderer = kiss_init("AI Controlled Manipulator Arm", &objects, 1440, 810);
@@ -359,19 +362,31 @@
                     inputters[i].y = yPos;
                     yPos += inputterYSpacing;
                     //send an update
-                    inputters[i].slider.fraction = 0.5f;
-                    float value = (inputters[i].slider.fraction - 0.5f) * inputters[i].sliderRange + inputters[i].defaultValue; // calculates the slider's value
-                    char text[16];
-                    snprintf(text, sizeof(text), "%.2f", value);
-                    strcpy(inputters[i].entry.text, text);
+                        inputters[i].slider.fraction = 0.5f;
+                        float value = (inputters[i].slider.fraction - 0.5f) * inputters[i].sliderRange + inputters[i].defaultValue; // calculates the slider's value
+                        char text[16];
+                        snprintf(text, sizeof(text), "%.2f", value);
+                        strcpy(inputters[i].entry.text, text);
                 } // initialise slider inputters
+                
+                // Add start training gui elements
+                    buttonStartTrainingPopupY = yPos -3;
+                    kiss_label_new(&labelStartTraining, &panelControls, "Start Training", inputterX, yPos-3);
+                    kiss_button_new(&buttonStartTrainingPopup, &panelControls, "Start", inputterX, kiss_textfont.fontheight+yPos-3);
+                    kiss_button_new(&buttonStartTraining, &panelControls, "Train", kiss_screen_width/2 - 30, kiss_screen_height/2 + 120 - 2*kiss_textfont.fontheight);
+                    
                 
                 kiss_vscrollbar_new(&controlPanelScrollbar, &panelControls, 1440 - 20, 10, 810-10*2);
             }
 
             { // inistialise popup
                 kiss_button_new(&popupButton, &window, "Okay", kiss_screen_width/2 - 30, kiss_screen_height/2 + 120);
-                kiss_label_new(&popupLabel, &window, "My pop up heehee\nnew line test", kiss_screen_width/2 - 180, kiss_screen_height/2 - 280);
+                kiss_label_new(&popupLabel, &window, "My pop up\nnew line test", kiss_screen_width/2 - 180, kiss_screen_height/2 - 280);
+            }
+
+            { // initialise start training popup
+                kiss_entry_new(&trainForNGenerationsEntry, &panelControls, 1, "0", kiss_screen_width/2 - 180 + 80, kiss_screen_height/2 - 280 + 2*kiss_textfont.fontheight -5, 100);
+                kiss_entry_new(&showEveryNthGenerationEntry, &panelControls, 1, "0", kiss_screen_width/2 - 180 + 90, kiss_screen_height/2 - 280 + 4*kiss_textfont.fontheight -5, 100);
             }
 
             // Info buttons
@@ -657,9 +672,8 @@
             }
         public:
             Payload(SimulationContext &mySimulationContext) : simulationContext(mySimulationContext) {
-                position.x= rand() % 1000; //simulationContext.radius + 100;
-                position.y=simulationContext.radius + 230;
-                velocity.x = 4.0f;
+                position.x= simulationContext.radius + 100;
+                position.y= simulationContext.floorHeight - simulationContext.radius;
             }
         
             void update(Arm &arm) {
@@ -758,7 +772,6 @@
             void advance() {
                 payload.update(arm);
                 arm.update();
-            
                 // if training repeat for xyz frames, if displaying then end
             }
 
@@ -783,12 +796,12 @@
     };
 // Neural Network Manager
     void advanceNN(SimulationContext &simulationContext) {
-        for (int i=0; i<1; i++) {
+        for (int i=0; i<simulationContext.numInstances; i++) {
             // find inputs:
             // end effector-payload displacement
-            // payload target displacement, and relative velo
-            // angles & velos for each joint
             // payload-targetPos displacement.
+            // payload velo
+            // angles & velos for each joint
             Vec2 payloadDisplacementToEndEffector = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
             Vec2 payloadDisplacementToTarget = Vec2(1000.0f, simulationContext.floorHeight) - simulationContext.simulations[i]->payload.position;
             vector<float> inputs = {payloadDisplacementToEndEffector.x, payloadDisplacementToEndEffector.y,
@@ -797,10 +810,7 @@
             for (int j=0; j<5; j++) {
                 inputs.push_back(simulationContext.simulations[i]->arm.angles[j]);
                 inputs.push_back(simulationContext.simulations[i]->arm.angularVelocities[j]);
-            }
-
-            // vector<float> inputs = {simulationContext.debug1, simulationContext.debug2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-            
+            }            
             cout << endl;
             cout << endl;
             cout << endl;
@@ -837,11 +847,12 @@
             // calculate outputs
             vector<float> outputs = simulationContext.neuralNetworks[i]->CalculateOutputs(inputs);
             cout << "outputs " << i << ":" << endl;
-            // tanh(x) and round outputs before displaying
+            // restrict and round outputs before displaying
             for (int j=0; j<5; j++) {
-                outputs[j] = 0.01*(pow(2,outputs[j]/100)-1)/(pow(2,outputs[j]/100)+1);
-                cout << std::floor(outputs[j]*1000)/1000 << endl;
+                cout << std::floor(outputs[j]*10000)/10000 << endl;
+                outputs[j] *= 0.01;
             }
+
             // apply force outputs
             for (int j=0; j<simulationContext.numOfLinkages; j++) {
                 // apply force
@@ -880,25 +891,29 @@
         }
     }
 
-    void control_panel_slider_event(kiss_vscrollbar &slider, Inputter inputters[], SDL_Event &e, int &draw) { //this passes the dereferenced inputters array and it works but not sure why.
-        if (kiss_vscrollbar_event(&slider, &e, &draw)) {
-            float multiplier = 250.0f;
-            float amountScrolled = slider.fraction;
+    void control_panel_slider_event(GUIContext &guiContext) { //this passes the dereferenced inputters array and it works but not sure why.
+        if (kiss_vscrollbar_event(&guiContext.controlPanelScrollbar, &guiContext.e, &guiContext.draw)) {
+            float multiplier = 400.0f;
+            float amountScrolled = guiContext.controlPanelScrollbar.fraction; 
             float maxCanScroll = 1.0f;
             float ratio = amountScrolled / maxCanScroll;
             int controlPanelYOffSet = static_cast<int>(round(multiplier*(1.0f-ratio)));
             for (int i = 0; i< MAX_INPUTTERS; i++) {
-                inputters[i].entry.rect.y = inputters[i].y + controlPanelYOffSet - multiplier;
-                inputters[i].entry.texty = inputters[i].y + controlPanelYOffSet + 6 - multiplier;
+                guiContext.inputters[i].entry.rect.y = guiContext.inputters[i].y + controlPanelYOffSet - multiplier;
+                guiContext.inputters[i].entry.texty = guiContext.inputters[i].y + controlPanelYOffSet - multiplier + 6;
 
-                inputters[i].slider.leftrect.y = inputters[i].y + controlPanelYOffSet - multiplier + 6;
-                inputters[i].slider.rightrect.y = inputters[i].y + controlPanelYOffSet - multiplier + 6;
-                inputters[i].slider.sliderrect.y = inputters[i].y + controlPanelYOffSet - multiplier + 6;
+                guiContext.inputters[i].slider.leftrect.y = guiContext.inputters[i].y + controlPanelYOffSet - multiplier + 6;
+                guiContext.inputters[i].slider.rightrect.y = guiContext.inputters[i].y + controlPanelYOffSet - multiplier + 6;
+                guiContext.inputters[i].slider.sliderrect.y = guiContext.inputters[i].y + controlPanelYOffSet - multiplier + 6;
 
-                inputters[i].label.rect.y = inputters[i].y + controlPanelYOffSet - multiplier - 10;
+                guiContext.inputters[i].label.rect.y = guiContext.inputters[i].y + controlPanelYOffSet - multiplier - 10;
             }
+            // move start training button
+            guiContext.buttonStartTrainingPopup.rect.y = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier + 6;
+            guiContext.buttonStartTrainingPopup.texty = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier + 6 + 2;
+            guiContext.labelStartTraining.rect.y = guiContext.buttonStartTrainingPopupY + controlPanelYOffSet - multiplier - 10;
 
-            draw = true;
+            guiContext.draw = true;
         }
     }
 
@@ -917,10 +932,19 @@
         }
     }
 
-    void popup_event(bool &popupIsActive, kiss_button &popupButton, kiss_label &popupLabel, SDL_Event &e, int &draw) {
-        if (kiss_button_event(&popupButton, &e, &draw)) {
-            popupIsActive = false;
-            draw = true;
+    void disable_popup(GUIContext &guiContext) {
+        guiContext.popupIsActive = false;
+        guiContext.trainingPopupIsActive = false; // if its showing the training popup
+        // reset popup text to "Okay" in case the training popup changed it
+        string newText = "Okay";
+        snprintf(guiContext.popupButton.text, sizeof(guiContext.popupButton.text), "%s", newText.c_str());
+        guiContext.popupButton.textx = 707;
+        guiContext.draw = true;
+    }
+
+    void popup_event(GUIContext &guiContext) { // Occurs when "Okay"/"Cancel" button is pressed on the popup
+        if (kiss_button_event(&guiContext.popupButton, &guiContext.e, &guiContext.draw)) {
+            disable_popup(guiContext);
         }
     }
 
@@ -935,9 +959,30 @@
         }
     }
 
+    void start_training_popup_button_event(GUIContext &guiContext) {
+        if (kiss_button_event(&guiContext.buttonStartTrainingPopup, &guiContext.e, &guiContext.draw)) {
+            // show popup
+            show_popup("Please enter the training options:\n\nTrain for           generations.\n\nShow every           th generation.\n\n\nEach generation takes the simulation\n20 seconds real time or max 0.5 seconds\ntraining time.\n\nThere will be a button to stop the\ntraining session early.", guiContext.popupIsActive, guiContext.popupLabel);
+            // change popup "Okay" button text to "Cancel"
+            string newText = "Cancel";
+            snprintf(guiContext.popupButton.text, sizeof(guiContext.popupButton.text), "%s", newText.c_str());
+            guiContext.popupButton.textx = 707 - 7;
+            // show the entry boxes & train button
+            guiContext.trainingPopupIsActive = true;
+        }
+    }
+
+    void start_training_confirm_button_event(GUIContext &guiContext, SimulationContext &simulationContext) {
+        if (kiss_button_event(&guiContext.buttonStartTraining, &guiContext.e, &guiContext.draw)) {
+            simulationContext.numOfGenerationsToTrain = atoi(guiContext.trainForNGenerationsEntry.text);
+            simulationContext.showEveryNthGeneration = atoi(guiContext.showEveryNthGenerationEntry.text);
+            disable_popup(guiContext);
+        }
+    }
+
 
 //
-// Main loop functions
+// Main loop function
     void handle_events_and_inputs(GUIContext &guiContext, SimulationContext &simulationContext) {
         while (SDL_PollEvent(&guiContext.e)) { // Inputs, Events
             if (guiContext.e.type == SDL_QUIT) guiContext.quit = true;
@@ -945,7 +990,7 @@
             kiss_window_event(&guiContext.window, &guiContext.e, &guiContext.draw);
             
             if (guiContext.popupIsActive) {
-                popup_event(guiContext.popupIsActive, guiContext.popupButton, guiContext.popupLabel, guiContext.e, guiContext.draw);
+                popup_event(guiContext);
                 //break;
             }
 
@@ -953,7 +998,15 @@
                 slider_event(guiContext.inputters[i], guiContext.e, guiContext.draw);
                 entry_event(guiContext.inputters[i], guiContext.e, guiContext.draw);
             }
-            control_panel_slider_event(guiContext.controlPanelScrollbar, guiContext.inputters, guiContext.e, guiContext.draw);
+            control_panel_slider_event(guiContext);
+            // start training popup events
+                start_training_popup_button_event(guiContext);
+                if (guiContext.trainingPopupIsActive) {
+                    // trainForNGenerationsEntry, showEveryNthGenerationEntry events
+                    kiss_entry_event(&guiContext.trainForNGenerationsEntry, &guiContext.e, &guiContext.draw);
+                    kiss_entry_event(&guiContext.showEveryNthGenerationEntry, &guiContext.e, &guiContext.draw);
+                    start_training_confirm_button_event(guiContext, simulationContext);
+                }
 
             // info button events
                 for (int i = 0; i<MAX_INFOBUTTONS; i++) {
@@ -1053,6 +1106,15 @@
                 kiss_label_draw(&guiContext.popupLabel, guiContext.renderer);
                 kiss_button_draw(&guiContext.popupButton, guiContext.renderer);
             }
+        // Draw start training button and popup
+            kiss_button_draw(&guiContext.buttonStartTrainingPopup, guiContext.renderer);
+            kiss_label_draw(&guiContext.labelStartTraining, guiContext.renderer);
+            if (guiContext.trainingPopupIsActive) {
+                // draw trainForNGenerationsEntry, showEveryNthGenerationEntry, buttonStartTraining
+                kiss_entry_draw(&guiContext.trainForNGenerationsEntry, guiContext.renderer);
+                kiss_entry_draw(&guiContext.showEveryNthGenerationEntry, guiContext.renderer);
+                kiss_button_draw(&guiContext.buttonStartTraining, guiContext.renderer);
+            }
         // Drawing FPS counter
             kiss_label_draw(&guiContext.fpsLabel, guiContext.renderer);
 
@@ -1062,20 +1124,19 @@
 //
 int main(int argc, char **argv)
 {
-    GUIContext guiContext = GUIContext();
-    SimulationContext simulationContext = SimulationContext();
-    {
-        if (!guiContext.renderer) {cout << "Renderer init failed"; return 1;}
-        srand(23483);
-        
-        // string InitialPopupMessage = "            Welcome to Jonah's\n      Computer Science NEA Project\n      AI Controlled Manipulator Arm\n         (That you can train)!\n\nOverview:\nThis GUI is split into 3 separate panels.\n\nThe simulation panel displayes the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel.\n\nClick the ?s to find out more.";
-        // show_popup(InitialPopupMessage, guiContext.popupIsActive, guiContext.popupLabel);
-    }
+        // Initialise
+        GUIContext guiContext = GUIContext();
+        SimulationContext simulationContext = SimulationContext();
+        {
+            if (!guiContext.renderer) {cout << "Renderer init failed"; return 1;}    
+            // string InitialPopupMessage = "            Welcome to Jonah's\n      Computer Science NEA Project\n      AI Controlled Manipulator Arm\n         (That you can train)!\n\nOverview:\nThis GUI is split into 3 separate panels.\n\nThe simulation panel displayes the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel.\n\nClick the ?s to find out more.";
+            // show_popup(InitialPopupMessage, guiContext.popupIsActive, guiContext.popupLabel);
+        }
     { // Add simulations
         // inputs: payload Displacement To End Effector. payload Displacement To Target. payload velocity. angles & velos for each joint.
         const int numInputs = 2 + 2 + 2 + 2*simulationContext.numOfLinkages;
         const int numOutputs = simulationContext.numOfLinkages; // each output is the angular force on a joint.
-        for (int i=0; i<1; i++) {
+        for (int i=0; i<simulationContext.numInstances; i++) {
             simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
             
             simulationContext.neuralNetworks.push_back(std::make_shared<NeuralNetwork>(numInputs, numOutputs));
@@ -1114,8 +1175,6 @@ int main(int argc, char **argv)
     kiss_clean(&guiContext.objects);
     return 0;
 }
-
-// consider removing simulationIsActive and draw booleans
 
 
 
