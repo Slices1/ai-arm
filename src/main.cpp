@@ -8,6 +8,9 @@
     #include <random> // For testing
     #include <ctime>   // Needed for time() for random seed
     #include <memory> // for vectors ::make_shared
+    #include <vector>
+    #include <cstdlib> // for evolve
+
     
     using namespace std;
 
@@ -128,6 +131,12 @@
         float temp = pow(2, x); // optimisation since I dont think pow() is memoised
         return (temp - 1) / (temp + 1);
     }
+
+    float ReLU(float x) {
+        if (x>0) {return x;}
+        return 0;
+    }
+
 // Structs
     typedef struct {
         kiss_hscrollbar slider;
@@ -158,10 +167,10 @@
         private:
             int numNeurons; // number of neurons in the current layer
             int numInputNeurons; // number of neurons in the previous layer
-            std::vector<std::vector<float>> weights;
-            std::vector<float> biases;
 
         public:
+            std::vector<std::vector<float>> weights;
+            std::vector<float> biases;
             // Constructor - biases gets initialised with length numNeurons and weights gets initialised with dimensions numNeurons x numInputNeurons
             Layer(int numInputNeurons, int numNeurons) : numNeurons(numNeurons), numInputNeurons(numInputNeurons),
                                     weights(numNeurons, std::vector<float>(numInputNeurons)), biases(numNeurons) {
@@ -183,7 +192,9 @@
                     }
                     // add biases
                     outputs[i] += biases[i];
-                    outputs[i] = optimisedTanh(outputs[i]); // apply activation function
+                    if (i < numNeurons-1) {
+                        outputs[i] = ReLU(outputs[i]); // apply activation function
+                    }
 
                 }
                 return outputs;
@@ -192,24 +203,24 @@
     class NeuralNetwork {
         private:
             const int numLayers = 3; // 3 layers: hidden, hidden, output. input is not technically a layer here.
-            std::vector<std::shared_ptr<Layer>> layers;
 
         public:
-        NeuralNetwork(const int numInputs, const int numOutputs) {
-            const int numberOfNeurons[numLayers+1] = {numInputs, 6, 5, numOutputs};
-            // initialise layers tensor
-            for (int i = 0; i < numLayers; i++) {
-                layers.push_back(std::make_shared<Layer>(numberOfNeurons[i], numberOfNeurons[i + 1]));
+            std::vector<std::shared_ptr<Layer>> layers;
+            NeuralNetwork(const int numInputs, const int numOutputs) {
+                const int numberOfNeurons[numLayers+1] = {numInputs, 6, 5, numOutputs};
+                // initialise layers tensor
+                for (int i = 0; i < numLayers; i++) {
+                    layers.push_back(std::make_shared<Layer>(numberOfNeurons[i], numberOfNeurons[i + 1]));
+                }
             }
-        }
 
-        std::vector<float> CalculateOutputs(std::vector<float>& inputs) {
-            for (auto& layer : layers) {
-                // feed the outputs back in as inputs
-                inputs = layer->CalculateLayerOutput(inputs);
+            std::vector<float> CalculateOutputs(std::vector<float>& inputs) {
+                for (auto& layer : layers) {
+                    // feed the outputs back in as inputs
+                    inputs = layer->CalculateLayerOutput(inputs);
+                }
+                return inputs;
             }
-            return inputs;
-        }
     };
 
 // Contexts
@@ -230,6 +241,7 @@
             const int numOfLinkages = 5; // Arm linkage count
             int linkageLength = 90; // Arm linkage length
             Vec2 payloadSpawnPosition = Vec2(radius + 100, floorHeight - radius);
+            Vec2 targetPosition = Vec2(1000.0f, floorHeight);
 
             // colliders
                 Collider staticColliders[MAX_STATIC_COLLIDERS] = {
@@ -263,11 +275,14 @@
                     //1116, 594
                     };
         
-        std::vector<std::shared_ptr<Simulation>> simulations;
+        vector<shared_ptr<Simulation>> simulations;
         float debug1;
         float debug2;
         // NeuralNetwork, GeneticAlgorithm
-            std::vector<std::shared_ptr<NeuralNetwork>> neuralNetworks;
+            vector<shared_ptr<NeuralNetwork>> neuralNetworks;
+            vector<float> fitnesses;
+            float mutationRate = 0.2f;
+
             int numOfGenerationsToTrain;
             int showEveryNthGeneration; // the n value in 'display simulations every nth generation'
             
@@ -328,6 +343,7 @@
             Uint32 fpsCurrent; //the current FPS.
             Uint32 fpsFrameCount = 0; //frames passed since the last recorded fps
             kiss_label fpsLabel = {0};
+            kiss_label targetPositionLabel = {0};
     
 
         // Constructor
@@ -405,6 +421,8 @@
         
             // MISC
                 kiss_label_new(&fpsLabel, &window, "FPS: 0", 1040, 4);
+                kiss_label_new(&targetPositionLabel, &window, "X", 0, 0);
+                
 
             {// set the windows visible
                 window.visible = true;
@@ -481,9 +499,9 @@
             SimulationContext &simulationContext;
             
         public:
-            std::vector<float> angles; // 0 radians is directly up from the prev linkage. with y-axis down, clockwise is positive
-            std::vector<float> angularVelocities; // with y-axis down, clockwise is positive
-            std::vector<std::shared_ptr<Collider>> linkages;
+            vector<float> angles; // 0 radians is directly up from the prev linkage. with y-axis down, clockwise is positive
+            vector<float> angularVelocities; // with y-axis down, clockwise is positive
+            vector<std::shared_ptr<Collider>> linkages;
             Collider endEffector = Collider(Vec2(558.0-simulationContext.linkageLength/2,591-simulationContext.numOfLinkages*simulationContext.linkageLength),Vec2(558+simulationContext.linkageLength/2.0,591-simulationContext.numOfLinkages*simulationContext.linkageLength));
 
         public:
@@ -770,7 +788,7 @@
         //         payload.reset();
         //     }
 
-        //     void apply_controls(const std::vector<float> &controls) {
+        //     void apply_controls(const vector<float> &controls) {
         //         // Use controls (e.g., motor torques) to update arm state
         //         arm.apply_controls(controls);
         //     }
@@ -798,10 +816,10 @@
 
         //     float calculate_fitness() const {
         //         // Compute fitness based on simulation goals (e.g., payload position, energy usage)
-        //         return payload.get_position().distance_to(target_position);
+        //         return payload.get_position().distance_to(targetPosition);
         //     }
 
-        //     std::vector<float> get_state() const {
+        //     vector<float> get_state() const {
         //         // Return current state variables, e.g., joint angles, velocities
         //         return arm.get_state();
         //     }
@@ -869,7 +887,7 @@
             // apply force outputs
             for (int j=0; j<simulationContext.numOfLinkages; j++) {
                 // apply force
-                simulationContext.simulations[i]->arm.angularVelocities[j] += outputs[j]*0.01;
+                simulationContext.simulations[i]->arm.angularVelocities[j] += optimisedTanh(outputs[j])*0.01;
             }
             // cout << endl;
             // cout << endl;
@@ -881,9 +899,146 @@
             // cout << endl;
         }
     }
-    // void evolve(SimulationContext &simulationContext) {
-        
+
+    // Sort neural networks by fitness in descending order
+    // void sort_by_fitness( // deprecated
+    //     vector<std::shared_ptr<NeuralNetwork>>& neuralNetworks,
+    //     vector<std::shared_ptr<float>>& fitnesses) {
+    //     auto comparator = [&](size_t i, size_t j) {
+    //         return *fitnesses[i] > *fitnesses[j];
+    //     };
+    //     vector<size_t> indices(neuralNetworks.size());
+    //     for (size_t i = 0; i < indices.size(); ++i) {
+    //         indices[i] = i;
+    //     }
+    //     std::sort(indices.begin(), indices.end(), comparator);
+    //     vector<std::shared_ptr<NeuralNetwork>> sortedNetworks;
+    //     vector<std::shared_ptr<float>> sortedFitnesses;
+    //     for (size_t i : indices) {
+    //         sortedNetworks.push_back(neuralNetworks[i]);
+    //         sortedFitnesses.push_back(fitnesses[i]);
+    //     }
+    //     neuralNetworks = sortedNetworks;
+    //     fitnesses = sortedFitnesses;
     // }
+    void sort_by_fitness(std::vector<std::shared_ptr<NeuralNetwork>>& neuralNetworks, std::vector<float>& fitnesses) {
+        std::vector<size_t> indices(neuralNetworks.size());
+        for (size_t i = 0; i < indices.size(); ++i) {
+            indices[i] = i;
+        }
+
+        auto comparator = [&](size_t i, size_t j) {
+            return fitnesses[i] > fitnesses[j];
+        };
+
+        std::sort(indices.begin(), indices.end(), comparator);
+
+        std::vector<std::shared_ptr<NeuralNetwork>> sortedNetworks;
+        std::vector<float> sortedFitnesses;
+
+        for (size_t i : indices) {
+            sortedNetworks.push_back(neuralNetworks[i]);
+            sortedFitnesses.push_back(fitnesses[i]);
+        }
+
+        neuralNetworks = sortedNetworks;
+        fitnesses = sortedFitnesses;
+        }
+
+
+    // Perform crossover to create a child network
+    std::shared_ptr<NeuralNetwork> crossover(const std::shared_ptr<NeuralNetwork> &parent1, const std::shared_ptr<NeuralNetwork> &parent2) {
+        std::shared_ptr<NeuralNetwork> child = std::make_shared<NeuralNetwork>(*parent1); // Copy structure from one parent
+        for (size_t l = 0; l < parent1->layers.size(); ++l) {
+            auto& layer1 = parent1->layers[l];
+            auto& layer2 = parent2->layers[l];
+            auto& childLayer = child->layers[l];
+
+            for (size_t i = 0; i < layer1->weights.size(); ++i) {
+                for (size_t j = 0; j < layer1->weights[i].size(); ++j) {
+                    if (rand() % 2 == 0) {
+                        childLayer->weights[i][j] = layer1->weights[i][j];
+                    } else {
+                        childLayer->weights[i][j] = layer2->weights[i][j];
+                    }
+                }
+                if (rand() % 2 == 0) {
+                    childLayer->biases[i] = layer1->biases[i];
+                } else {
+                    childLayer->biases[i] = layer2->biases[i];
+                }
+            }
+        }
+        return child;
+    }
+    // Select a random parent from the population
+    std::shared_ptr<NeuralNetwork> select_parent(const vector<std::shared_ptr<NeuralNetwork>> &population) {
+        size_t index = rand() % population.size();
+        return population[index];
+    }
+    // Mutate a child network
+    void mutate(std::shared_ptr<NeuralNetwork> &child, SimulationContext &simulationContext) {
+        for (auto& layer : child->layers) {
+            for (size_t i = 0; i < layer->weights.size(); ++i) {
+                for (size_t j = 0; j < layer->weights[i].size(); ++j) {
+                    if ((float)rand() / RAND_MAX < simulationContext.mutationRate) {
+                        layer->weights[i][j] = ((rand() % 500 - 250) / 100.0f);
+                    }
+                }
+                if ((float)rand() / RAND_MAX < simulationContext.mutationRate) {
+                    layer->biases[i] = ((rand() % 600 - 300) / 100.0f);
+                }
+            }
+        }
+    }
+    // Check if an individual survives based on its survival chance
+    bool survived(float survivalChance) {
+        return ((float)rand() / RAND_MAX) < survivalChance;
+    }
+    // Evolve the population
+    void evolve(SimulationContext &simulationContext) {
+        // debug print
+            // cout << "before sorting" << endl;
+            // for (int i = 0; i < 1000; ++i) {
+            //     cout << simulationContext.fitnesses[i] << endl;
+            // } 
+        sort_by_fitness(simulationContext.neuralNetworks, simulationContext.fitnesses);
+        // debug print
+            // cout << "after sorting" << endl;
+            // for (int i = 0; i < 1000; ++i) {
+                // cout << simulationContext.fitnesses[i] << endl;
+            // } 
+
+        vector<std::shared_ptr<NeuralNetwork>> newPopulation;
+        size_t populationSize = simulationContext.neuralNetworks.size();
+
+        // Survival step
+        for (size_t i = 0; i < populationSize; ++i) {
+            float survivalChance = 1.0f - (float)i / populationSize;
+            if (survived(survivalChance)) {
+                newPopulation.push_back(simulationContext.neuralNetworks[i]);
+            }
+        }
+
+        // Reproduction step
+        while (newPopulation.size() < populationSize) {
+            // std::shared_ptr<NeuralNetwork> parent1 = select_parent(newPopulation);
+            // std::shared_ptr<NeuralNetwork> parent2 = select_parent(newPopulation);
+            // std::shared_ptr<NeuralNetwork> newChild = crossover(parent1, parent2);
+            // mutate(newChild, simulationContext);
+            // newPopulation.push_back(newChild);
+
+            // std::shared_ptr<NeuralNetwork>  newChild = select_parent(simulationContext.neuralNetworks);
+            // mutate(newChild, simulationContext);
+            // newPopulation.push_back(newChild);
+
+            newPopulation.push_back(select_parent(newPopulation));
+        }
+
+        simulationContext.neuralNetworks = newPopulation;
+    }
+
+
 // Event handlers
     void button_event(kiss_button &button, SDL_Event &e, int &draw, int &quit, int &myCounter)
     {
@@ -1163,7 +1318,8 @@
             } 
         // Drawing FPS counter
             kiss_label_draw(&guiContext.fpsLabel, guiContext.renderer);
-
+        // Drawing Target Position marker
+            kiss_label_draw(&guiContext.targetPositionLabel, guiContext.renderer);
         SDL_RenderPresent(guiContext.renderer);
         guiContext.draw = false;
     }
@@ -1183,7 +1339,7 @@ void display_generation_loop(GUIContext &guiContext, SimulationContext &simulati
         for (int j=0; j<simulationContext.numInstances; j++) {
             simulationContext.simulations[j]->advance();
             // simulation->calculateFitness();
-            if ((j%200)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
+            if ((j%1)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
         }
         applyNeuralNetworkOutputsToSimulations(simulationContext, simulationContext.numInstances);
         handle_events_and_inputs(guiContext, simulationContext);
@@ -1203,7 +1359,6 @@ void train1GenerationASAP(SimulationContext &simulationContext) {
 }
 
 void training_loop(GUIContext &guiContext, SimulationContext &simulationContext, int i) {
-    handle_fps(guiContext);
     // reset all simulations
     for (const auto &simulation : simulationContext.simulations) {
         simulation->reset();
@@ -1216,7 +1371,14 @@ void training_loop(GUIContext &guiContext, SimulationContext &simulationContext,
     } else {
         train1GenerationASAP(simulationContext);
     }
-    // evolve(simulationContext);
+
+    // temp find fitnesses
+    for (int i=0; i<simulationContext.numInstances; i++) {
+        Vec2 payloadDisplacementToTarget = simulationContext.targetPosition - simulationContext.simulations[i]->payload.position;
+        simulationContext.fitnesses[i] = - payloadDisplacementToTarget.magnitude_squared();
+    }
+
+    evolve(simulationContext);
 
     draw_gui(guiContext, simulationContext);
     handle_events_and_inputs(guiContext, simulationContext);
@@ -1254,6 +1416,9 @@ int main(int argc, char **argv)
             SimulationContext simulationContext = SimulationContext();
         { // Init GUI
             if (!guiContext.renderer) {cout << "Renderer init failed"; return 1;}    
+            guiContext.targetPositionLabel.rect.x = simulationContext.targetPosition.x;
+            guiContext.targetPositionLabel.rect.y = simulationContext.targetPosition.y;
+            
             // string InitialPopupMessage = "            Welcome to Jonah's\n      Computer Science NEA Project\n      AI Controlled Manipulator Arm\n         (That you can train)!\n\nOverview:\nThis GUI is split into 3 separate panels.\n\nThe simulation panel displayes the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel.\n\nClick the ?s to find out more.";
             // show_popup(InitialPopupMessage, guiContext.popupIsActive, guiContext.popupLabel);
         }
@@ -1263,8 +1428,8 @@ int main(int argc, char **argv)
             const int numOutputs = simulationContext.numOfLinkages; // each output is the angular force on a joint.
             for (int i=0; i<simulationContext.numInstances; i++) {
                 simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
-                
                 simulationContext.neuralNetworks.push_back(std::make_shared<NeuralNetwork>(numInputs, numOutputs));
+                simulationContext.fitnesses.push_back(0.0f);
             }
         }
 
@@ -1286,3 +1451,7 @@ int main(int argc, char **argv)
 
 
 
+// added relu
+// added targetPosition variable and label
+// theres a bias for the arm to fall to the right after adding relu despite it not affecting the output layer (or atleast thats how it should work).
+// its working
