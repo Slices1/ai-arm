@@ -192,8 +192,9 @@
                     }
                     // add biases
                     outputs[i] += biases[i];
+                    // make it not do the output layer
                     if (i < numNeurons-1) {
-                        outputs[i] = ReLU(outputs[i]); // apply activation function
+                        outputs[i] = optimisedTanh(outputs[i]); // apply activation function
                     }
 
                 }
@@ -202,12 +203,12 @@
     };
     class NeuralNetwork {
         private:
-            const int numLayers = 3; // 3 layers: hidden, hidden, output. input is not technically a layer here.
+            const int numLayers = 7; // 3 layers: hidden, hidden, output. input is not technically a layer here.
 
         public:
             std::vector<std::shared_ptr<Layer>> layers;
             NeuralNetwork(const int numInputs, const int numOutputs) {
-                const int numberOfNeurons[numLayers+1] = {numInputs, 6, 5, numOutputs};
+                const int numberOfNeurons[numLayers+1] = {numInputs, 10, 9, 8, 7, 6, 5, numOutputs};
                 // initialise layers tensor
                 for (int i = 0; i < numLayers; i++) {
                     layers.push_back(std::make_shared<Layer>(numberOfNeurons[i], numberOfNeurons[i + 1]));
@@ -227,7 +228,7 @@
     class Simulation; // Forward declaration
 
     struct SimulationContext {
-        const int numInstances = 1000; // the number of simulations/NNs that will be stored at once.
+        const int numInstances = 5; // the number of simulations/NNs that will be stored at once.
         const int maxTrainingFrames = 15*45; // 15 seconds // the number of frames that the simulation will run for each training instance.
         // simulation declerations
             bool isTraining = false;
@@ -238,7 +239,7 @@
             float constraintAngle = M_PI/3; // max radians from the centre angle.
             Vec2 armOriginPos = Vec2(558.0f, 591.0f);
             int radius = 30; // payload radius
-            const int numOfLinkages = 5; // Arm linkage count
+            const int numOfLinkages = 1; // Arm linkage count
             int linkageLength = 90; // Arm linkage length
             Vec2 payloadSpawnPosition = Vec2(radius + 100, floorHeight - radius);
             Vec2 targetPosition = Vec2(1000.0f, floorHeight);
@@ -281,7 +282,7 @@
         // NeuralNetwork, GeneticAlgorithm
             vector<shared_ptr<NeuralNetwork>> neuralNetworks;
             vector<float> fitnesses;
-            float mutationRate = 0.2f;
+            float mutationRate = 0.01f;
 
             int numOfGenerationsToTrain;
             int showEveryNthGeneration; // the n value in 'display simulations every nth generation'
@@ -1022,17 +1023,17 @@
 
         // Reproduction step
         while (newPopulation.size() < populationSize) {
-            // std::shared_ptr<NeuralNetwork> parent1 = select_parent(newPopulation);
-            // std::shared_ptr<NeuralNetwork> parent2 = select_parent(newPopulation);
-            // std::shared_ptr<NeuralNetwork> newChild = crossover(parent1, parent2);
-            // mutate(newChild, simulationContext);
-            // newPopulation.push_back(newChild);
+            std::shared_ptr<NeuralNetwork> parent1 = select_parent(newPopulation);
+            std::shared_ptr<NeuralNetwork> parent2 = select_parent(newPopulation);
+            std::shared_ptr<NeuralNetwork> newChild = crossover(parent1, parent2);
+            mutate(newChild, simulationContext);
+            newPopulation.push_back(newChild);
 
             // std::shared_ptr<NeuralNetwork>  newChild = select_parent(simulationContext.neuralNetworks);
             // mutate(newChild, simulationContext);
             // newPopulation.push_back(newChild);
 
-            newPopulation.push_back(select_parent(newPopulation));
+            // newPopulation.push_back(select_parent(newPopulation));
         }
 
         simulationContext.neuralNetworks = newPopulation;
@@ -1259,6 +1260,12 @@
                 }
         }
     }
+    void draw_gui_beneath_simulation(GUIContext &guiContext) {
+        SDL_RenderClear(guiContext.renderer);
+        kiss_window_draw(&guiContext.window, guiContext.renderer);
+        kiss_window_draw(&guiContext.panelSimulation, guiContext.renderer);
+    }
+
     void draw_gui(GUIContext &guiContext, SimulationContext &simulationContext) {
         // Draw windows, misc sdl
             // these 2 windows get drawn before the simulation so they are behind it.
@@ -1323,11 +1330,7 @@
         SDL_RenderPresent(guiContext.renderer);
         guiContext.draw = false;
     }
-    void draw_gui_beneath_simulation(GUIContext &guiContext) {
-        SDL_RenderClear(guiContext.renderer);
-        kiss_window_draw(&guiContext.window, guiContext.renderer);
-        kiss_window_draw(&guiContext.panelSimulation, guiContext.renderer);
-    }
+    
 
 // Driver code loops
 void display_generation_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
@@ -1339,7 +1342,11 @@ void display_generation_loop(GUIContext &guiContext, SimulationContext &simulati
         for (int j=0; j<simulationContext.numInstances; j++) {
             simulationContext.simulations[j]->advance();
             // simulation->calculateFitness();
+
+            // show all agents
             if ((j%1)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
+            // show every 200th agent
+            // if ((j%200)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
         }
         applyNeuralNetworkOutputsToSimulations(simulationContext, simulationContext.numInstances);
         handle_events_and_inputs(guiContext, simulationContext);
@@ -1372,16 +1379,26 @@ void training_loop(GUIContext &guiContext, SimulationContext &simulationContext,
         train1GenerationASAP(simulationContext);
     }
 
-    // temp find fitnesses
+    // temp reward functions
     for (int i=0; i<simulationContext.numInstances; i++) {
-        Vec2 payloadDisplacementToTarget = simulationContext.targetPosition - simulationContext.simulations[i]->payload.position;
-        simulationContext.fitnesses[i] = - payloadDisplacementToTarget.magnitude_squared();
+        // optimal solution: ball close to target
+        // Vec2 payloadDisplacementToTarget = simulationContext.targetPosition - simulationContext.simulations[i]->payload.position;
+        // simulationContext.fitnesses[i] = - payloadDisplacementToTarget.magnitude_squared();
+
+        // optimal solution: end effector close to ball
+        // Vec2 dist = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
+        // simulationContext.fitnesses[i] = - dist.magnitude_squared();
+
+        // optimal solution: scrunched up clockwise
+        for (int j=0; j<simulationContext.numOfLinkages; j++) {
+            simulationContext.fitnesses[i] += simulationContext.simulations[i]->arm.angles[j];
+        }
     }
 
     evolve(simulationContext);
 
-    draw_gui(guiContext, simulationContext);
     handle_events_and_inputs(guiContext, simulationContext);
+    draw_gui(guiContext, simulationContext);
     check_if_program_quitted(guiContext);
 }
 
@@ -1411,6 +1428,7 @@ void idle_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
 int main(int argc, char **argv)
 {
     // Initialise
+        cout << ">Initialising" << endl;
         // Init Contexts
             GUIContext guiContext = GUIContext();
             SimulationContext simulationContext = SimulationContext();
@@ -1432,7 +1450,7 @@ int main(int argc, char **argv)
                 simulationContext.fitnesses.push_back(0.0f);
             }
         }
-
+        cout << ">Initialised" << endl;
     // Main loop
     while (!guiContext.quit) {
         // idle_loop() runs the main loop where no training is happening and just the best arm is being displayed.
@@ -1455,3 +1473,5 @@ int main(int argc, char **argv)
 // added targetPosition variable and label
 // theres a bias for the arm to fall to the right after adding relu despite it not affecting the output layer (or atleast thats how it should work).
 // its working
+// I changed brain size
+// I reduced mutation rate
