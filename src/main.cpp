@@ -17,7 +17,7 @@
 // Defines
     #define MAX_INPUTTERS 12
     #define MAX_INFOBUTTONS 3
-    #define MAX_STATIC_COLLIDERS 8
+    #define MAX_STATIC_COLLIDERS 1
     #define MAX_LINKAGES 8
 
 // New types
@@ -84,8 +84,7 @@
         return Vec2(myVector.y, -myVector.x);
     }
 
-    void DrawCircle(SDL_Renderer *renderer, int32_t centreX, int32_t centreY, int32_t radius)
-    {
+    void DrawCircle(SDL_Renderer *renderer, int32_t centreX, int32_t centreY, int32_t radius) {
         const int32_t diameter = (radius * 2);
 
         int32_t x = (radius - 1);
@@ -179,7 +178,7 @@
                     for (int j = 0; j < numInputNeurons; j++) {
                         weights[i][j] = (rand() % 200 - 100) / 100.0f;
                     }
-                    biases[i] = (rand() % 200 - 100) / 100.0f;
+                    biases[i] = (rand() % 100 - 50) / 100.0f;
                 }
             }
 
@@ -207,11 +206,18 @@
 
         public:
             std::vector<std::shared_ptr<Layer>> layers;
-            NeuralNetwork(const int numInputs, const int numOutputs) {
+            NeuralNetwork(const int numInputs, const int numOutputs) { // Constructor
                 const int numberOfNeurons[numLayers+1] = {numInputs, 10, 9, 8, 7, 6, 5, numOutputs};
                 // initialise layers tensor
                 for (int i = 0; i < numLayers; i++) {
                     layers.push_back(std::make_shared<Layer>(numberOfNeurons[i], numberOfNeurons[i + 1]));
+                }
+            }
+
+            NeuralNetwork(const NeuralNetwork& other) : numLayers(other.numLayers){ // Deep copy constructor
+                layers.reserve(other.layers.size()); // Optimisation to prepare the layers vector for the adding of other.layers 
+                for (const auto& layer : other.layers) {
+                    layers.push_back(std::make_shared<Layer>(*layer));
                 }
             }
 
@@ -228,9 +234,10 @@
     class Simulation; // Forward declaration
 
     struct SimulationContext {
-        const int numInstances = 5; // the number of simulations/NNs that will be stored at once.
+        const int numInstances = 1000; // the number of simulations/NNs that will be stored at once.
         const int maxTrainingFrames = 15*45; // 15 seconds // the number of frames that the simulation will run for each training instance.
         // simulation declerations
+            const int numOfLinkages = 4; // Arm linkage count
             bool isTraining = false;
             float gravity = 1.2f;
             float coefOfRestitution = 0.7f;
@@ -239,41 +246,17 @@
             float constraintAngle = M_PI/3; // max radians from the centre angle.
             Vec2 armOriginPos = Vec2(558.0f, 591.0f);
             int radius = 30; // payload radius
-            const int numOfLinkages = 1; // Arm linkage count
             int linkageLength = 90; // Arm linkage length
             Vec2 payloadSpawnPosition = Vec2(radius + 100, floorHeight - radius);
-            Vec2 targetPosition = Vec2(1000.0f, floorHeight);
+            Vec2 targetPosition = Vec2(1000.0f, floorHeight - radius);
+            int generationCount = 0;
+            
 
             // colliders
                 Collider staticColliders[MAX_STATIC_COLLIDERS] = {
                     // Collider(Vec2(450.,600.), Vec2(450.,200)),
                     // Collider(Vec2(100.,400.), Vec2(750.,400)),
-                    Collider(Vec2(0,125+( rand() % 20 - 10)), Vec2(100,125+( rand() % 20 - 10))),
-                    Collider(Vec2(100,250+( rand() % 20 - 10)), Vec2(200,250+( rand() % 20 - 10))),
-                    // Collider(Vec2(0,375+( rand() % 20 - 10)), Vec2(100,375+( rand() % 20 - 10))),
-                    // Collider(Vec2(100,500+( rand() % 20 - 10)), Vec2(200,500+( rand() % 20 - 10))),
-
-                    Collider(Vec2(0+200,125+( rand() % 20 - 10)), Vec2(100+200,125+( rand() % 20 - 10))),
-                    Collider(Vec2(100+200,250+( rand() % 20 - 10)), Vec2(200+200,250+( rand() % 20 - 10))),
-                    // Collider(Vec2(0+200,375+( rand() % 20 - 10)), Vec2(100+200,375+( rand() % 20 - 10))),
-                    // Collider(Vec2(100+200,500+( rand() % 20 - 10)), Vec2(200+200,500+( rand() % 20 - 10))),
-
-                    // Collider(Vec2(0+400,125+( rand() % 20 - 10)), Vec2(100+400,125+( rand() % 20 - 10))),
-                    Collider(Vec2(100+400,250+( rand() % 20 - 10)), Vec2(200+400,250+( rand() % 20 - 10))),
-                    // Collider(Vec2(0+400,375+( rand() % 20 - 10)), Vec2(100+400,375+( rand() % 20 - 10))),
-                    // Collider(Vec2(100+400,500+( rand() % 20 - 10)), Vec2(200+400,500+( rand() % 20 - 10))),
-
-                    // Collider(Vec2(0+600,125+( rand() % 20 - 10)), Vec2(100+600,125+( rand() % 20 - 10))),
-                    Collider(Vec2(100+600,250+( rand() % 20 - 10)), Vec2(200+600,250+( rand() % 20 - 10))),
-                    // Collider(Vec2(0+600,375+( rand() % 20 - 10)), Vec2(100+600,375+( rand() % 20 - 10))),
-                    // Collider(Vec2(100+600,500+( rand() % 20 - 10)), Vec2(200+600,500+( rand() % 20 - 10))),
-
-                    Collider(Vec2(0+800,125+( rand() % 20 - 10)), Vec2(100+800,125+( rand() % 20 - 10))),
-                    Collider(Vec2(100+800,250+( rand() % 20 - 10)), Vec2(200+800,250+( rand() % 20 - 10))),
-                    // Collider(Vec2(0+800,375+( rand() % 20 - 10)), Vec2(100+800,375+( rand() % 20 - 10))),
-                    // Collider(Vec2(100+800,500+( rand() % 20 - 10)), Vec2(200+800,500+( rand() % 20 - 10))),
-
-                    //1116, 594
+                    Collider(Vec2(420,floorHeight), Vec2(508,563)),
                     };
         
         vector<shared_ptr<Simulation>> simulations;
@@ -282,7 +265,9 @@
         // NeuralNetwork, GeneticAlgorithm
             vector<shared_ptr<NeuralNetwork>> neuralNetworks;
             vector<float> fitnesses;
-            float mutationRate = 0.01f;
+            float mutationRate = 0.2f;
+            float crossOverRate = 0.5f;
+            float survivabilityModifier = 0.5f; // the percentage of the population that will survive to the next generation.
 
             int numOfGenerationsToTrain;
             int showEveryNthGeneration; // the n value in 'display simulations every nth generation'
@@ -338,13 +323,14 @@
         // Info buttons
             InfoButton infoButtons[MAX_INFOBUTTONS];
         // misc
-            int frameDelay;
+            int frameDelay = 0;
             int myCounter = 0;
             Uint32 ticksLastTime = SDL_GetTicks(); //the last recorded time
             Uint32 fpsCurrent; //the current FPS.
             Uint32 fpsFrameCount = 0; //frames passed since the last recorded fps
             kiss_label fpsLabel = {0};
             kiss_label targetPositionLabel = {0};
+            kiss_label generationCountLabel = {0};
     
 
         // Constructor
@@ -366,9 +352,9 @@
 
             { // initialise control panel
                 //slider values
-                const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Coef of Friction", "Gravity", "Coef of Restitution", "Arm Angle Constraints", "Radius", "name9", "Linkage Length", "name11", "name12"};
-                const float defaultArray[MAX_INPUTTERS] = {     0.0f,                    0.9f,            21.0f,                 0.9f,              1.2f,             0.7f,             M_PI/3,             30.0f,       5.0f,               90.0f,    0.0f, 0.0f};
-                const float rangeArray[MAX_INPUTTERS] = {       200.0f,                  4.0f,            700.0f,                2*0.1f,              10.0f,            2*0.7f,          2*M_PI/3,          2*30.0f,     2*5.0f,           2*90.0f,  50.0f, 50.0f};
+                const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Coef of Friction", "Gravity", "Coef of Restitution", "Arm Angle Constraints", "Radius", "Linkage Length", "Mutation Rate", "Crossover Split", "Survivability Modifier"};
+                const float defaultArray[MAX_INPUTTERS] = {     0.0f,                    0.9f,            21.0f,                 0.9f,              1.2f,             0.7f,             M_PI/3,             30.0f,       90.0f,               0.2f,    0.5f,                 0.5f};
+                const float rangeArray[MAX_INPUTTERS] = {       200.0f,                  4.0f,            700.0f,                2*0.1f,              10.0f,            2*0.7f,          2*M_PI/3,          2*30.0f,     2*90.0f,           2*0.2f,  2*0.5f,                1.0f};
 
                 for(int i =0; i<MAX_INPUTTERS; i++) {
                     inputters[i].defaultValue = defaultArray[i];
@@ -423,6 +409,8 @@
             // MISC
                 kiss_label_new(&fpsLabel, &window, "FPS: 0", 1040, 4);
                 kiss_label_new(&targetPositionLabel, &window, "X", 0, 0);
+                kiss_label_new(&generationCountLabel, &window, "Generation 0", 200, 4);
+                
                 
 
             {// set the windows visible
@@ -619,6 +607,7 @@
             SimulationContext &simulationContext;
             Vec2 directionFromIntersectedCollider; // used for collision resolution
             float displacementIntoCollider; // used for collision resolution
+            const int maxElectroMagnetStrength = 5; // the maximum strength of the electromagnet
         public:
             Vec2 prevPosition;
             Vec2 position = simulationContext.payloadSpawnPosition;
@@ -702,13 +691,16 @@
             }
         
             void update(Arm &arm) {
-                    // Carry out Semi-Implicit Euler Integration
-                    prevPosition = position;
-                    velocity.y += simulationContext.gravity;
-                    // Apply electromagnet force proportional to end effector direction and 1/r^2
-                    Vec2 displacementToEndEffector = arm.linkages[simulationContext.numOfLinkages-1]->endPos - position;
-                    velocity += Normalise(displacementToEndEffector) * 4000.0f / (displacementToEndEffector.magnitude_squared() + 3.0f);
-                    position += velocity;
+                    // Start Semi-Implicit Euler Integration
+                        prevPosition = position;
+                        velocity.y += simulationContext.gravity;
+                    // Apply electromagnet force proportional to end effector displacement
+                        Vec2 displacementToEndEffector = arm.linkages[simulationContext.numOfLinkages-1]->endPos - position;
+                        float distance = LengthOfVector(displacementToEndEffector);
+                        // use tanh() although physically inaccurate to clamp min dist and max strength
+                        velocity += Normalise(displacementToEndEffector) * maxElectroMagnetStrength * (-optimisedTanh((distance-simulationContext.radius-25)/5) + 1) / 2;
+                    // Finish Semi-Implicit Euler Integration
+                        position += velocity;
                     
                     // Floor collision
                     if (position.y + simulationContext.radius > simulationContext.floorHeight) { // If below floor
@@ -902,26 +894,26 @@
     }
 
     // Sort neural networks by fitness in descending order
-    // void sort_by_fitness( // deprecated
-    //     vector<std::shared_ptr<NeuralNetwork>>& neuralNetworks,
-    //     vector<std::shared_ptr<float>>& fitnesses) {
-    //     auto comparator = [&](size_t i, size_t j) {
-    //         return *fitnesses[i] > *fitnesses[j];
-    //     };
-    //     vector<size_t> indices(neuralNetworks.size());
-    //     for (size_t i = 0; i < indices.size(); ++i) {
-    //         indices[i] = i;
-    //     }
-    //     std::sort(indices.begin(), indices.end(), comparator);
-    //     vector<std::shared_ptr<NeuralNetwork>> sortedNetworks;
-    //     vector<std::shared_ptr<float>> sortedFitnesses;
-    //     for (size_t i : indices) {
-    //         sortedNetworks.push_back(neuralNetworks[i]);
-    //         sortedFitnesses.push_back(fitnesses[i]);
-    //     }
-    //     neuralNetworks = sortedNetworks;
-    //     fitnesses = sortedFitnesses;
-    // }
+        // void sort_by_fitness( // deprecated
+        //     vector<std::shared_ptr<NeuralNetwork>>& neuralNetworks,
+        //     vector<std::shared_ptr<float>>& fitnesses) {
+        //     auto comparator = [&](size_t i, size_t j) {
+        //         return *fitnesses[i] > *fitnesses[j];
+        //     };
+        //     vector<size_t> indices(neuralNetworks.size());
+        //     for (size_t i = 0; i < indices.size(); ++i) {
+        //         indices[i] = i;
+        //     }
+        //     std::sort(indices.begin(), indices.end(), comparator);
+        //     vector<std::shared_ptr<NeuralNetwork>> sortedNetworks;
+        //     vector<std::shared_ptr<float>> sortedFitnesses;
+        //     for (size_t i : indices) {
+        //         sortedNetworks.push_back(neuralNetworks[i]);
+        //         sortedFitnesses.push_back(fitnesses[i]);
+        //     }
+        //     neuralNetworks = sortedNetworks;
+        //     fitnesses = sortedFitnesses;
+        // }
     void sort_by_fitness(std::vector<std::shared_ptr<NeuralNetwork>>& neuralNetworks, std::vector<float>& fitnesses) {
         std::vector<size_t> indices(neuralNetworks.size());
         for (size_t i = 0; i < indices.size(); ++i) {
@@ -948,8 +940,8 @@
 
 
     // Perform crossover to create a child network
-    std::shared_ptr<NeuralNetwork> crossover(const std::shared_ptr<NeuralNetwork> &parent1, const std::shared_ptr<NeuralNetwork> &parent2) {
-        std::shared_ptr<NeuralNetwork> child = std::make_shared<NeuralNetwork>(*parent1); // Copy structure from one parent
+    std::shared_ptr<NeuralNetwork> crossover(const std::shared_ptr<NeuralNetwork> &parent1, const std::shared_ptr<NeuralNetwork> &parent2, const float &crossOverRate) {
+        std::shared_ptr<NeuralNetwork> child = std::make_shared<NeuralNetwork>(*parent1); // Use deep copy constructor
         for (size_t l = 0; l < parent1->layers.size(); ++l) {
             auto& layer1 = parent1->layers[l];
             auto& layer2 = parent2->layers[l];
@@ -957,13 +949,13 @@
 
             for (size_t i = 0; i < layer1->weights.size(); ++i) {
                 for (size_t j = 0; j < layer1->weights[i].size(); ++j) {
-                    if (rand() % 2 == 0) {
+                    if ( (float)rand() / RAND_MAX < crossOverRate ) {
                         childLayer->weights[i][j] = layer1->weights[i][j];
                     } else {
                         childLayer->weights[i][j] = layer2->weights[i][j];
                     }
                 }
-                if (rand() % 2 == 0) {
+                if ( (float)rand() / RAND_MAX < crossOverRate ) {
                     childLayer->biases[i] = layer1->biases[i];
                 } else {
                     childLayer->biases[i] = layer2->biases[i];
@@ -983,11 +975,27 @@
             for (size_t i = 0; i < layer->weights.size(); ++i) {
                 for (size_t j = 0; j < layer->weights[i].size(); ++j) {
                     if ((float)rand() / RAND_MAX < simulationContext.mutationRate) {
-                        layer->weights[i][j] = ((rand() % 500 - 250) / 100.0f);
+                        // randomly mutate in one of these 3 ways: 1.5x, 0.5x, random value between -2 and 2
+                        int mutationType = rand() % 3;
+                        if (mutationType == 0) {
+                            layer->weights[i][j] *= 1.5;
+                        } else if (mutationType == 1) {
+                            layer->weights[i][j] *= 0.5;
+                        } else {
+                            layer->weights[i][j] = ((rand() % 4000 - 2000) / 1000.0f);
+                        }
                     }
                 }
                 if ((float)rand() / RAND_MAX < simulationContext.mutationRate) {
-                    layer->biases[i] = ((rand() % 600 - 300) / 100.0f);
+                    // randomly mutate in one of these 3 ways: 1.5x, 0.5x, random value between -1 and 1
+                    int mutationType = rand() % 3;
+                    if (mutationType == 0) {
+                        layer->biases[i] *= 1.5;
+                    } else if (mutationType == 1) {
+                        layer->biases[i] *= 0.5;
+                    } else {
+                        layer->biases[i] = ((rand() % 2000 - 1000) / 1000.0f);
+                    }
                 }
             }
         }
@@ -1004,28 +1012,32 @@
             //     cout << simulationContext.fitnesses[i] << endl;
             // } 
         sort_by_fitness(simulationContext.neuralNetworks, simulationContext.fitnesses);
-        // debug print
+        // print fitnesses
             // cout << "after sorting" << endl;
             // for (int i = 0; i < 1000; ++i) {
                 // cout << simulationContext.fitnesses[i] << endl;
             // } 
-
         vector<std::shared_ptr<NeuralNetwork>> newPopulation;
         size_t populationSize = simulationContext.neuralNetworks.size();
 
         // Survival step
         for (size_t i = 0; i < populationSize; ++i) {
-            float survivalChance = 1.0f - (float)i / populationSize;
+            float survivalChance = 0.5f - (float)i / (populationSize) + simulationContext.survivabilityModifier;
             if (survived(survivalChance)) {
                 newPopulation.push_back(simulationContext.neuralNetworks[i]);
             }
+        }
+
+        // If none survived, place the best individual back into the population
+        if (newPopulation.empty()) {
+            newPopulation.push_back(simulationContext.neuralNetworks[0]);
         }
 
         // Reproduction step
         while (newPopulation.size() < populationSize) {
             std::shared_ptr<NeuralNetwork> parent1 = select_parent(newPopulation);
             std::shared_ptr<NeuralNetwork> parent2 = select_parent(newPopulation);
-            std::shared_ptr<NeuralNetwork> newChild = crossover(parent1, parent2);
+            std::shared_ptr<NeuralNetwork> newChild = crossover(parent1, parent2, simulationContext.crossOverRate);
             mutate(newChild, simulationContext);
             newPopulation.push_back(newChild);
 
@@ -1041,8 +1053,7 @@
 
 
 // Event handlers
-    void button_event(kiss_button &button, SDL_Event &e, int &draw, int &quit, int &myCounter)
-    {
+    void button_event(kiss_button &button, SDL_Event &e, int &draw, int &quit, int &myCounter) {
         if (kiss_button_event(&button, &e, &draw)) {
             myCounter+=1;
             string newText = to_string(myCounter);
@@ -1180,6 +1191,7 @@
                 guiContext.fpsFrameCount = 0;
                 sprintf(guiContext.fpsLabel.text, "FPS: %d", guiContext.fpsCurrent);
             }
+
         // Frame delay    
             SDL_Delay(guiContext.frameDelay);
     }
@@ -1248,8 +1260,11 @@
                 simulationContext.coefOfRestitution = atof(guiContext.inputters[5].entry.text);
                 simulationContext.constraintAngle = abs(atof(guiContext.inputters[6].entry.text));
                 simulationContext.radius = abs(atoi(guiContext.inputters[7].entry.text));
-                // simulationContext.numOfLinkages = atoi(guiContext.inputters[8].entry.text);
-                simulationContext.linkageLength = abs(atoi(guiContext.inputters[9].entry.text))+1;
+                simulationContext.linkageLength = abs(atoi(guiContext.inputters[8].entry.text))+1;
+                simulationContext.mutationRate = atof(guiContext.inputters[9].entry.text);
+                simulationContext.crossOverRate = atof(guiContext.inputters[10].entry.text);
+                simulationContext.survivabilityModifier = atof(guiContext.inputters[11].entry.text);
+
                 // move payload to clicked pos
                 if (guiContext.e.type == SDL_MOUSEBUTTONDOWN && simulationContext.isTraining == false) {
                     if (guiContext.e.button.button == SDL_BUTTON_LEFT && guiContext.e.button.x < 1116 && guiContext.e.button.y < 594) {
@@ -1265,7 +1280,6 @@
         kiss_window_draw(&guiContext.window, guiContext.renderer);
         kiss_window_draw(&guiContext.panelSimulation, guiContext.renderer);
     }
-
     void draw_gui(GUIContext &guiContext, SimulationContext &simulationContext) {
         // Draw windows, misc sdl
             // these 2 windows get drawn before the simulation so they are behind it.
@@ -1282,14 +1296,14 @@
             kiss_label_draw(&guiContext.inputters[i].label, guiContext.renderer);
         }
         kiss_vscrollbar_draw(&guiContext.controlPanelScrollbar, guiContext.renderer);
-        // Drawing colliders
+        // Draw colliders
             // set draw colour black
             SDL_SetRenderDrawColor(guiContext.renderer, 0, 0, 0, 255);
             for(int i =0; i<MAX_STATIC_COLLIDERS; i++) { 
                 SDL_RenderDrawLine(guiContext.renderer, simulationContext.staticColliders[i].startPos.x, simulationContext.staticColliders[i].startPos.y, simulationContext.staticColliders[i].endPos.x, simulationContext.staticColliders[i].endPos.y);
             }
-        // Draw simulations
-            
+        // Draw other collider lines
+            SDL_RenderDrawLine(guiContext.renderer, 508, simulationContext.floorHeight, 508, 563);
         // Draw window titles
             kiss_makerect(&guiContext.panelControlsTitleRect, 1220, 4, 120, 15);
             kiss_fillrect(guiContext.renderer, &guiContext.panelControlsTitleRect, kiss_white);
@@ -1297,11 +1311,11 @@
             kiss_label_draw(&guiContext.panelSimulationTitle, guiContext.renderer);
             kiss_label_draw(&guiContext.panelGraphsTitle, guiContext.renderer);
 
-        // Drawing info buttons
+        // Draw info buttons
             for (int i =0; i<MAX_INFOBUTTONS; i++) {
                 kiss_button_draw(&guiContext.infoButtons[i].button, guiContext.renderer);
             }
-        // Drawing pop up
+        // Draw pop up
             if (guiContext.popupIsActive) {
                 kiss_makerect(&guiContext.popupRect, kiss_screen_width/2 - 200, kiss_screen_height/2 - 300, 400, 460);
                 kiss_fillrect(guiContext.renderer, &guiContext.popupRect, kiss_lightblue);
@@ -1323,14 +1337,16 @@
                 kiss_entry_draw(&guiContext.showEveryNthGenerationEntry, guiContext.renderer);
                 kiss_button_draw(&guiContext.buttonStartTraining, guiContext.renderer);
             } 
-        // Drawing FPS counter
+        // Draw FPS counter
             kiss_label_draw(&guiContext.fpsLabel, guiContext.renderer);
-        // Drawing Target Position marker
+        // Draw Target Position marker
             kiss_label_draw(&guiContext.targetPositionLabel, guiContext.renderer);
+        // Draw generation counter label
+            kiss_label_draw(&guiContext.generationCountLabel, guiContext.renderer);
+        
         SDL_RenderPresent(guiContext.renderer);
         guiContext.draw = false;
     }
-    
 
 // Driver code loops
 void display_generation_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
@@ -1346,7 +1362,7 @@ void display_generation_loop(GUIContext &guiContext, SimulationContext &simulati
             // show all agents
             if ((j%1)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
             // show every 200th agent
-            // if ((j%200)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
+            // if ((j%50)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
         }
         applyNeuralNetworkOutputsToSimulations(simulationContext, simulationContext.numInstances);
         handle_events_and_inputs(guiContext, simulationContext);
@@ -1366,34 +1382,49 @@ void train1GenerationASAP(SimulationContext &simulationContext) {
 }
 
 void training_loop(GUIContext &guiContext, SimulationContext &simulationContext, int i) {
+    // update the generation counter
+        simulationContext.generationCount += 1;
+        string newText = "Generation " + to_string(simulationContext.generationCount);
+        snprintf(guiContext.generationCountLabel.text, sizeof(guiContext.generationCountLabel.text), "%s", newText.c_str());
     // reset all simulations
-    for (const auto &simulation : simulationContext.simulations) {
-        simulation->reset();
-    }
+        for (const auto &simulation : simulationContext.simulations) {
+            simulation->reset();
+        }
+    // reset fitnesses
+        for (int i=0; i<simulationContext.numInstances; i++) {
+            simulationContext.fitnesses[i] = 0.0f;
+        }
     // draw gui beneath so we clear the frame from the popup.
-    draw_gui_beneath_simulation(guiContext);
+        draw_gui_beneath_simulation(guiContext);
+
     // show every nth generation fully. Otherwise, train ASAP.
-    if (((i % simulationContext.showEveryNthGeneration) == 0) && (simulationContext.showEveryNthGeneration != -1)) {
-        display_generation_loop(guiContext, simulationContext);
-    } else {
-        train1GenerationASAP(simulationContext);
-    }
+        if (((i % simulationContext.showEveryNthGeneration) == 0) && (simulationContext.showEveryNthGeneration != -1)) {
+            display_generation_loop(guiContext, simulationContext);
+        } else {
+            train1GenerationASAP(simulationContext);
+        }
 
     // temp reward functions
-    for (int i=0; i<simulationContext.numInstances; i++) {
-        // optimal solution: ball close to target
-        // Vec2 payloadDisplacementToTarget = simulationContext.targetPosition - simulationContext.simulations[i]->payload.position;
-        // simulationContext.fitnesses[i] = - payloadDisplacementToTarget.magnitude_squared();
+        for (int i=0; i<simulationContext.numInstances; i++) {
 
-        // optimal solution: end effector close to ball
-        // Vec2 dist = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
-        // simulationContext.fitnesses[i] = - dist.magnitude_squared();
+            // optimal solution: end effector close to ball
+            // Vec2 dist = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
+            // simulationContext.fitnesses[i] = - dist.magnitude_squared();
 
-        // optimal solution: scrunched up clockwise
-        for (int j=0; j<simulationContext.numOfLinkages; j++) {
-            simulationContext.fitnesses[i] += simulationContext.simulations[i]->arm.angles[j];
+            // optimal solution: scrunched up clockwise
+            // for (int j=0; j<simulationContext.numOfLinkages; j++) {
+            //     simulationContext.fitnesses[i] += simulationContext.simulations[i]->arm.angles[j];
+            // }
+            if (simulationContext.debug1 < 300) {
+                // optimal solution: end effector close to ball and ball high up
+                Vec2 dist = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
+                simulationContext.fitnesses[i] = - LengthOfVector(dist) - simulationContext.simulations[i]->payload.position.y;
+            } else {
+                // optimal solution: ball close to target
+                Vec2 payloadDisplacementToTarget = simulationContext.targetPosition - simulationContext.simulations[i]->payload.position;
+                simulationContext.fitnesses[i] = - payloadDisplacementToTarget.magnitude_squared();
+            }
         }
-    }
 
     evolve(simulationContext);
 
@@ -1403,15 +1434,14 @@ void training_loop(GUIContext &guiContext, SimulationContext &simulationContext,
 }
 
 void idle_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
-    handle_fps(guiContext);
     handle_events_and_inputs(guiContext, simulationContext);
+    handle_fps(guiContext);
     // start training if button is pressed otherwise just show simulation 0.
     if (simulationContext.isTraining) {
         // train the specified num of generations
         for (int i=0; i<simulationContext.numOfGenerationsToTrain; i++) {
             training_loop(guiContext, simulationContext, i);
         }
-        // once training is done, reset the training bool
         simulationContext.isTraining = false;
     } else {
         draw_gui_beneath_simulation(guiContext);
@@ -1425,8 +1455,7 @@ void idle_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
     draw_gui(guiContext, simulationContext);
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     // Initialise
         cout << ">Initialising" << endl;
         // Init Contexts

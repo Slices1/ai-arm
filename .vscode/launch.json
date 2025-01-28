@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/slice/code-projects/cpp-projects/ai-arm",
-      "program": "/home/slice/code-projects/cpp-projects/ai-arm/build/Debug/outDebug",
+      "cwd": "/home/slice/code-projects/cpp/ai-arm/src",
+      "program": "/home/slice/code-projects/cpp/ai-arm/src/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
