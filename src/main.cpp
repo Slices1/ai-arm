@@ -15,10 +15,9 @@
     using namespace std;
 
 // Defines
-    #define MAX_INPUTTERS 12
+    #define MAX_INPUTTERS 13
     #define MAX_INFOBUTTONS 3
     #define MAX_STATIC_COLLIDERS 1
-    #define MAX_LINKAGES 8
 
 // New types
     class Vec2 {
@@ -202,7 +201,7 @@
     };
     class NeuralNetwork {
         private:
-            const int numLayers = 7; // 3 layers: hidden, hidden, output. input is not technically a layer here.
+            const int numLayers = 7; // 6 layers: hidden, hidden, output. input is not technically a layer here.
 
         public:
             std::vector<std::shared_ptr<Layer>> layers;
@@ -238,21 +237,20 @@
         const int maxTrainingFrames = 15*45; // 15 seconds // the number of frames that the simulation will run for each training instance.
         // simulation declerations
             const int numOfLinkages = 4; // Arm linkage count
+            const Vec2 armOriginPos = Vec2(558.0f, 591.0f);
+            const int floorHeight = 594-3;
             bool isTraining = false;
             float gravity = 1.2f;
             float coefOfRestitution = 0.7f;
             float coefOfFriction = 0.92f;
-            const int floorHeight = 594-3;
             float constraintAngle = M_PI/3; // max radians from the centre angle.
-            Vec2 armOriginPos = Vec2(558.0f, 591.0f);
             int radius = 30; // payload radius
             int linkageLength = 90; // Arm linkage length
-            Vec2 payloadSpawnPosition = Vec2(radius + 100, floorHeight - radius);
-            Vec2 targetPosition = Vec2(1000.0f, floorHeight - radius);
             int generationCount = 0;
+            Vec2 payloadSpawnPosition = Vec2(radius + 110, floorHeight - radius);
+            Vec2 targetPosition = Vec2(1000.0f, floorHeight - radius);
             
-
-            // colliders
+        // colliders
                 Collider staticColliders[MAX_STATIC_COLLIDERS] = {
                     // Collider(Vec2(450.,600.), Vec2(450.,200)),
                     // Collider(Vec2(100.,400.), Vec2(750.,400)),
@@ -264,14 +262,13 @@
         float debug2;
         // NeuralNetwork, GeneticAlgorithm
             vector<shared_ptr<NeuralNetwork>> neuralNetworks;
-            vector<float> fitnesses;
-            float mutationRate = 0.2f;
-            float crossOverRate = 0.5f;
+            float mutationRate;
+            float crossOverRate;
             float survivabilityModifier = 0.5f; // the percentage of the population that will survive to the next generation.
 
             int numOfGenerationsToTrain;
             int showEveryNthGeneration; // the n value in 'display simulations every nth generation'
-            
+            float proportionAgentsToDisplay;
 
     };
 
@@ -299,7 +296,7 @@
             int inputterWidth = 324 - 20;
             int inputterYSpacing = 60;
             int inputterX = 1116 + 10;
-            int inputterY = 50;
+            int inputterY = 40;
             Inputter inputters[MAX_INPUTTERS]; 
         // control panel misc declerations
             kiss_vscrollbar controlPanelScrollbar;
@@ -352,9 +349,9 @@
 
             { // initialise control panel
                 //slider values
-                const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Coef of Friction", "Gravity", "Coef of Restitution", "Arm Angle Constraints", "Radius", "Linkage Length", "Mutation Rate", "Crossover Split", "Survivability Modifier"};
-                const float defaultArray[MAX_INPUTTERS] = {     0.0f,                    0.9f,            21.0f,                 0.9f,              1.2f,             0.7f,             M_PI/3,             30.0f,       90.0f,               0.2f,    0.5f,                 0.5f};
-                const float rangeArray[MAX_INPUTTERS] = {       200.0f,                  4.0f,            700.0f,                2*0.1f,              10.0f,            2*0.7f,          2*M_PI/3,          2*30.0f,     2*90.0f,           2*0.2f,  2*0.5f,                1.0f};
+                const char* nameArray[MAX_INPUTTERS] = {"Debug1 (-100 to 100)", "Debug2 (-50 to 150)", "Frame Delay (ms)", "Coef of Friction", "Gravity", "Coef of Restitution", "Arm Angle Constraints", "Radius", "Linkage Length", "Mutation Rate", "Crossover Split", "Survivability Modifier", "Proportion To Display"};
+                const float defaultArray[MAX_INPUTTERS] = {     0.0f,                    0.9f,            21.0f,                 0.9f,              1.2f,             0.7f,             M_PI/3,             30.0f,       90.0f,               0.2f,    0.5f,                 0.5f,                          0.5f};
+                const float rangeArray[MAX_INPUTTERS] = {       200.0f,                  4.0f,            700.0f,                2*0.1f,              10.0f,            2*0.7f,          2*M_PI/3,          2*30.0f,     2*90.0f,           2*0.2f,  2*0.5f,                1.0f,                               1.0f};
 
                 for(int i =0; i<MAX_INPUTTERS; i++) {
                     inputters[i].defaultValue = defaultArray[i];
@@ -484,6 +481,7 @@
  //
 // Simulation classes
     class Arm {
+
         private:
             SimulationContext &simulationContext;
             
@@ -492,10 +490,12 @@
             vector<float> angularVelocities; // with y-axis down, clockwise is positive
             vector<std::shared_ptr<Collider>> linkages;
             Collider endEffector = Collider(Vec2(558.0-simulationContext.linkageLength/2,591-simulationContext.numOfLinkages*simulationContext.linkageLength),Vec2(558+simulationContext.linkageLength/2.0,591-simulationContext.numOfLinkages*simulationContext.linkageLength));
+            Vec2 endEffectorMiddle;
+            bool endEffectorEnabled = true;
 
         public:
             Arm(SimulationContext &mySimulationContext) : simulationContext(mySimulationContext) {
-                for (int i=0; i<MAX_LINKAGES; i++) {
+                for (int i=0; i<simulationContext.numOfLinkages; i++) {
                     angles.emplace_back(0.0f);
                     angularVelocities.emplace_back(0.0f);
                     linkages.emplace_back(std::make_shared<Collider>(Collider(Vec2(simulationContext.armOriginPos.x, simulationContext.armOriginPos.y-i*simulationContext.linkageLength),Vec2(simulationContext.armOriginPos.x, simulationContext.armOriginPos.y-(i+1)*simulationContext.linkageLength))));
@@ -504,6 +504,7 @@
                 // test temporary displacement
                 angles[simulationContext.numOfLinkages-1] += 0.2f; // remove later
             }
+            
             void update() {
                 // resolve gravity from base link to 2nd to last link
                     for (int i=0; i<simulationContext.numOfLinkages-1; i++) {
@@ -586,9 +587,12 @@
                         prevPos = linkages[i]->endPos;
                         prevAngle += angles[i];
                     }
-                    endEffector.startPos = linkages[simulationContext.numOfLinkages-1]->endPos + Vec2(3*sin(prevAngle),-3*cos(prevAngle)) + Perpendicular(linkages[simulationContext.numOfLinkages-1]->direction)*simulationContext.linkageLength/2;
-                    endEffector.endPos = linkages[simulationContext.numOfLinkages-1]->endPos   + Vec2(3*sin(prevAngle),-3*cos(prevAngle)) - Perpendicular(linkages[simulationContext.numOfLinkages-1]->direction)*simulationContext.linkageLength/2;
+                    endEffector.startPos = linkages[simulationContext.numOfLinkages-1]->endPos + Perpendicular(linkages[simulationContext.numOfLinkages-1]->direction)*simulationContext.linkageLength/2;
+                    endEffector.endPos = linkages[simulationContext.numOfLinkages-1]->endPos - Perpendicular(linkages[simulationContext.numOfLinkages-1]->direction)*simulationContext.linkageLength/2;
+                    // Reduce last linkage length to stop jank collisions with it
+                    linkages[simulationContext.numOfLinkages-1]->endPos += - Vec2(sin(prevAngle),-cos(prevAngle))*simulationContext.linkageLength/2;
                 updateColliders(); // updates directions for payload collision purposes
+                endEffectorMiddle = linkages[simulationContext.numOfLinkages-1]->startPos + linkages[simulationContext.numOfLinkages-1]->direction * simulationContext.linkageLength;
             }
 
             void updateColliders() {
@@ -695,10 +699,12 @@
                         prevPosition = position;
                         velocity.y += simulationContext.gravity;
                     // Apply electromagnet force proportional to end effector displacement
-                        Vec2 displacementToEndEffector = arm.linkages[simulationContext.numOfLinkages-1]->endPos - position;
-                        float distance = LengthOfVector(displacementToEndEffector);
-                        // use tanh() although physically inaccurate to clamp min dist and max strength
-                        velocity += Normalise(displacementToEndEffector) * maxElectroMagnetStrength * (-optimisedTanh((distance-simulationContext.radius-25)/5) + 1) / 2;
+                        if (arm.endEffectorEnabled) {
+                            Vec2 displacementToEndEffector = arm.endEffectorMiddle - position;
+                            float distance = LengthOfVector(displacementToEndEffector);
+                            // use tanh() although physically inaccurate to clamp min dist and max strength
+                            velocity += Normalise(displacementToEndEffector) * maxElectroMagnetStrength * (-optimisedTanh((distance-simulationContext.radius-25)/5) + 1) / 2;
+                        }
                     // Finish Semi-Implicit Euler Integration
                         position += velocity;
                     
@@ -755,41 +761,61 @@
         public:
             Arm arm;
             Payload payload;
+            float fitness;
 
         public:
-            Simulation(SimulationContext &mySimulationContext) : simulationContext(mySimulationContext), arm(mySimulationContext), payload(mySimulationContext) {}
+            // Use an initialiser list to initialise the simulationContext reference, arm, payload and the fitness index
+            Simulation(SimulationContext &mySimulationContext) : simulationContext(mySimulationContext), arm(mySimulationContext), payload(mySimulationContext) {
+                fitness = 0.0f;
+            }
             void draw_simulation_objects(SDL_Renderer *renderer) {
                 // set draw colour to black
                 SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
                 // Draw payload
                 DrawCircle(renderer, payload.position.x, payload.position.y, simulationContext.radius);
                 // Draw arm
-                for (int i=0; i<simulationContext.numOfLinkages; i++) {
+                // Draw all linkages but last
+                for (int i=0; i<simulationContext.numOfLinkages-1; i++) {
                     SDL_RenderDrawLine(renderer, arm.linkages[i]->startPos.x,arm.linkages[i]->startPos.y,arm.linkages[i]->endPos.x,arm.linkages[i]->endPos.y);
                     // code to show expanded collider for collision detection for debugging
                     // Vec2 expandedStartPos = arm.linkages[i]->startPos - arm.linkages[i]->direction*simulationContext.radius;
                     // Vec2 expandedEndPos = arm.linkages[i]->endPos + arm.linkages[i]->direction*simulationContext.radius;
                     // SDL_RenderDrawLine(renderer, expandedStartPos.x,expandedStartPos.y,expandedEndPos.x,expandedEndPos.y);
                 }
+                // Draw last arm linkage at full length. In reality it only goes half way but this reduces jank collisions with the payload.
+                Vec2 start = arm.linkages[simulationContext.numOfLinkages-1]->startPos;
+                SDL_RenderDrawLine(renderer, start.x, start.y, arm.endEffectorMiddle.x, arm.endEffectorMiddle.y);
                 // Draw end effector
+                // Set colour blue if enabled, black if disabled
+                if (arm.endEffectorEnabled) {
+                    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+                }
                 SDL_RenderDrawLine(renderer, arm.endEffector.startPos.x,arm.endEffector.startPos.y,arm.endEffector.endPos.x,arm.endEffector.endPos.y);
             }
+            void update_fitness(const int &frame) {
+                // optimal solution: end effector close to ball
+                // Vec2 dist = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
+                // fitness = - dist.magnitude_squared();
 
-        //     void reset() {
-        //         // Reset arm, payload, and other simulation variables
-        //         arm.reset();
-        //         payload.reset();
-        //     }
+                // optimal solution: scrunched up clockwise
+                // for (int j=0; j<simulationContext.numOfLinkages; j++) {
+                //     fitness += simulationContext.simulations[i]->arm.angles[j];
+                // }
 
-        //     void apply_controls(const vector<float> &controls) {
-        //         // Use controls (e.g., motor torques) to update arm state
-        //         arm.apply_controls(controls);
-        //     }
-
-            void advance() {
+                if (frame == 45*5) { // 5 seconds in
+                    // optimal solution: end effector close to ball and ball high up
+                    Vec2 dist = arm.linkages[simulationContext.numOfLinkages-1]->endPos - payload.position;
+                    fitness += - LengthOfVector(dist) - payload.position.y/2;
+                } else if (frame > 45*8) { // more than 8 seconds in. will run 7*45 times
+                    // optimal solution: ball close to target
+                    Vec2 payloadDisplacementToTarget = simulationContext.targetPosition - payload.position;
+                    fitness += - LengthOfVector(payloadDisplacementToTarget)/(7*45);
+                }
+            }
+            void advance(const int &frame) {
                 payload.update(arm);
                 arm.update();
-                // if training repeat for xyz frames, if displaying then end
+                update_fitness(frame);
             }
 
             void reset() {
@@ -804,19 +830,9 @@
                         // reset position and velocity
                         payload.position = simulationContext.payloadSpawnPosition;
                         payload.velocity = Vec2(0.0f, 0.0f);
+                    // fitness
+                        fitness = 0.0f;
             }
-
-
-        //     float calculate_fitness() const {
-        //         // Compute fitness based on simulation goals (e.g., payload position, energy usage)
-        //         return payload.get_position().distance_to(targetPosition);
-        //     }
-
-        //     vector<float> get_state() const {
-        //         // Return current state variables, e.g., joint angles, velocities
-        //         return arm.get_state();
-        //     }
-
     };
 // Neural Network Management
     void applyNeuralNetworkOutputsToSimulations(SimulationContext &simulationContext, int instancesToAdvance) {
@@ -834,94 +850,29 @@
             for (int j=0; j<5; j++) {
                 inputs.push_back(simulationContext.simulations[i]->arm.angles[j]);
                 inputs.push_back(simulationContext.simulations[i]->arm.angularVelocities[j]);
-            }            
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << "inputs " << i << ":" << endl;
-            // for (int j=0; j<16; j++) {
-            //     cout << inputs[j] << endl;
-            // }
+            }
 
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
             // calculate outputs
             vector<float> outputs = simulationContext.neuralNetworks[i]->CalculateOutputs(inputs);
-            // cout << "outputs " << i << ":" << endl;
-            // // restrict and round outputs before displaying
-            // for (int j=0; j<5; j++) {
-            //     cout << std::floor(outputs[j]*10000)/10000 << endl;
-            //     outputs[j] *= 0.01;
-            // }
 
             // apply force outputs
             for (int j=0; j<simulationContext.numOfLinkages; j++) {
-                // apply force
                 simulationContext.simulations[i]->arm.angularVelocities[j] += optimisedTanh(outputs[j])*0.01;
             }
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
-            // cout << endl;
+            // update end effector status
+            simulationContext.simulations[i]->arm.endEffectorEnabled = (outputs[simulationContext.numOfLinkages] > 0);
         }
     }
 
     // Sort neural networks by fitness in descending order
-        // void sort_by_fitness( // deprecated
-        //     vector<std::shared_ptr<NeuralNetwork>>& neuralNetworks,
-        //     vector<std::shared_ptr<float>>& fitnesses) {
-        //     auto comparator = [&](size_t i, size_t j) {
-        //         return *fitnesses[i] > *fitnesses[j];
-        //     };
-        //     vector<size_t> indices(neuralNetworks.size());
-        //     for (size_t i = 0; i < indices.size(); ++i) {
-        //         indices[i] = i;
-        //     }
-        //     std::sort(indices.begin(), indices.end(), comparator);
-        //     vector<std::shared_ptr<NeuralNetwork>> sortedNetworks;
-        //     vector<std::shared_ptr<float>> sortedFitnesses;
-        //     for (size_t i : indices) {
-        //         sortedNetworks.push_back(neuralNetworks[i]);
-        //         sortedFitnesses.push_back(fitnesses[i]);
-        //     }
-        //     neuralNetworks = sortedNetworks;
-        //     fitnesses = sortedFitnesses;
-        // }
-    void sort_by_fitness(std::vector<std::shared_ptr<NeuralNetwork>>& neuralNetworks, std::vector<float>& fitnesses) {
+    void sort_by_fitness(vector<shared_ptr<NeuralNetwork>>& neuralNetworks, vector<shared_ptr<Simulation>>& simulations) {
         std::vector<size_t> indices(neuralNetworks.size());
         for (size_t i = 0; i < indices.size(); ++i) {
             indices[i] = i;
         }
 
         auto comparator = [&](size_t i, size_t j) {
-            return fitnesses[i] > fitnesses[j];
+            return simulations[i]->fitness > simulations[j]->fitness;
         };
 
         std::sort(indices.begin(), indices.end(), comparator);
@@ -931,12 +882,14 @@
 
         for (size_t i : indices) {
             sortedNetworks.push_back(neuralNetworks[i]);
-            sortedFitnesses.push_back(fitnesses[i]);
+            sortedFitnesses.push_back(simulations[i]->fitness);
         }
 
         neuralNetworks = sortedNetworks;
-        fitnesses = sortedFitnesses;
+        for (size_t i : indices) {
+            simulations[i]->fitness = sortedFitnesses[i];
         }
+    }
 
 
     // Perform crossover to create a child network
@@ -1006,17 +959,8 @@
     }
     // Evolve the population
     void evolve(SimulationContext &simulationContext) {
-        // debug print
-            // cout << "before sorting" << endl;
-            // for (int i = 0; i < 1000; ++i) {
-            //     cout << simulationContext.fitnesses[i] << endl;
-            // } 
-        sort_by_fitness(simulationContext.neuralNetworks, simulationContext.fitnesses);
-        // print fitnesses
-            // cout << "after sorting" << endl;
-            // for (int i = 0; i < 1000; ++i) {
-                // cout << simulationContext.fitnesses[i] << endl;
-            // } 
+        sort_by_fitness(simulationContext.neuralNetworks, simulationContext.simulations);
+
         vector<std::shared_ptr<NeuralNetwork>> newPopulation;
         size_t populationSize = simulationContext.neuralNetworks.size();
 
@@ -1192,8 +1136,8 @@
                 sprintf(guiContext.fpsLabel.text, "FPS: %d", guiContext.fpsCurrent);
             }
 
-        // Frame delay    
-            SDL_Delay(guiContext.frameDelay);
+        // Frame delay
+        SDL_Delay(guiContext.frameDelay);
     }
     void handle_events_and_inputs(GUIContext &guiContext, SimulationContext &simulationContext) {
         while (SDL_PollEvent(&guiContext.e)) { // Inputs, Events
@@ -1264,6 +1208,12 @@
                 simulationContext.mutationRate = atof(guiContext.inputters[9].entry.text);
                 simulationContext.crossOverRate = atof(guiContext.inputters[10].entry.text);
                 simulationContext.survivabilityModifier = atof(guiContext.inputters[11].entry.text);
+                simulationContext.proportionAgentsToDisplay = abs(atof(guiContext.inputters[12].entry.text));
+
+                // Avoid divide by zero errors
+                    if (simulationContext.linkageLength == 0) {simulationContext.linkageLength = 0.0001f;}
+                    if (simulationContext.proportionAgentsToDisplay == 0) {simulationContext.proportionAgentsToDisplay = 0.0001f;}
+                    if (simulationContext.proportionAgentsToDisplay > 1) {simulationContext.proportionAgentsToDisplay = 1.0f;}
 
                 // move payload to clicked pos
                 if (guiContext.e.type == SDL_MOUSEBUTTONDOWN && simulationContext.isTraining == false) {
@@ -1356,13 +1306,11 @@ void display_generation_loop(GUIContext &guiContext, SimulationContext &simulati
         // set colour black
         SDL_SetRenderDrawColor(guiContext.renderer, 0, 0, 0, 255);
         for (int j=0; j<simulationContext.numInstances; j++) {
-            simulationContext.simulations[j]->advance();
+            simulationContext.simulations[j]->advance(i);
             // simulation->calculateFitness();
 
-            // show all agents
-            if ((j%1)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
-            // show every 200th agent
-            // if ((j%50)==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
+            // Draw the specified proportion of agents
+            if ((j%(int)(1/simulationContext.proportionAgentsToDisplay))==0) {    simulationContext.simulations[j]->draw_simulation_objects(guiContext.renderer);    }
         }
         applyNeuralNetworkOutputsToSimulations(simulationContext, simulationContext.numInstances);
         handle_events_and_inputs(guiContext, simulationContext);
@@ -1374,7 +1322,7 @@ void display_generation_loop(GUIContext &guiContext, SimulationContext &simulati
 void train1GenerationASAP(SimulationContext &simulationContext) {
     for (int i=0; i<simulationContext.maxTrainingFrames; i++) {
         for (const auto &simulation : simulationContext.simulations) {
-            simulation->advance();
+            simulation->advance(i); // pass in the frame so we can calculate fitness dependent on it
             // simulation->calculateFitness();
         }
         applyNeuralNetworkOutputsToSimulations(simulationContext, simulationContext.numInstances);
@@ -1386,13 +1334,9 @@ void training_loop(GUIContext &guiContext, SimulationContext &simulationContext,
         simulationContext.generationCount += 1;
         string newText = "Generation " + to_string(simulationContext.generationCount);
         snprintf(guiContext.generationCountLabel.text, sizeof(guiContext.generationCountLabel.text), "%s", newText.c_str());
-    // reset all simulations
+    // reset all simulations and fitnesses
         for (const auto &simulation : simulationContext.simulations) {
             simulation->reset();
-        }
-    // reset fitnesses
-        for (int i=0; i<simulationContext.numInstances; i++) {
-            simulationContext.fitnesses[i] = 0.0f;
         }
     // draw gui beneath so we clear the frame from the popup.
         draw_gui_beneath_simulation(guiContext);
@@ -1402,28 +1346,6 @@ void training_loop(GUIContext &guiContext, SimulationContext &simulationContext,
             display_generation_loop(guiContext, simulationContext);
         } else {
             train1GenerationASAP(simulationContext);
-        }
-
-    // temp reward functions
-        for (int i=0; i<simulationContext.numInstances; i++) {
-
-            // optimal solution: end effector close to ball
-            // Vec2 dist = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
-            // simulationContext.fitnesses[i] = - dist.magnitude_squared();
-
-            // optimal solution: scrunched up clockwise
-            // for (int j=0; j<simulationContext.numOfLinkages; j++) {
-            //     simulationContext.fitnesses[i] += simulationContext.simulations[i]->arm.angles[j];
-            // }
-            if (simulationContext.debug1 < 300) {
-                // optimal solution: end effector close to ball and ball high up
-                Vec2 dist = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
-                simulationContext.fitnesses[i] = - LengthOfVector(dist) - simulationContext.simulations[i]->payload.position.y;
-            } else {
-                // optimal solution: ball close to target
-                Vec2 payloadDisplacementToTarget = simulationContext.targetPosition - simulationContext.simulations[i]->payload.position;
-                simulationContext.fitnesses[i] = - payloadDisplacementToTarget.magnitude_squared();
-            }
         }
 
     evolve(simulationContext);
@@ -1446,7 +1368,7 @@ void idle_loop(GUIContext &guiContext, SimulationContext &simulationContext) {
     } else {
         draw_gui_beneath_simulation(guiContext);
         // advance the first simulation
-        simulationContext.simulations[0]->advance();
+        simulationContext.simulations[0]->advance(0);
         // pass in 1 to the instancesToAdvance parameter to only do the first simulation.
         applyNeuralNetworkOutputsToSimulations(simulationContext, 1);
         // draw the simulation objects
@@ -1472,11 +1394,10 @@ int main(int argc, char **argv) {
         { // Add Simulations
             // inputs: payload Displacement To End Effector. payload Displacement To Target. payload velocity. angles & velos for each joint.
             const int numInputs = 2 + 2 + 2 + 2*simulationContext.numOfLinkages;
-            const int numOutputs = simulationContext.numOfLinkages; // each output is the angular force on a joint.
+            const int numOutputs = simulationContext.numOfLinkages + 1; // each output is the angular force on a joint + whether the end effector is enabled or not.
             for (int i=0; i<simulationContext.numInstances; i++) {
                 simulationContext.simulations.push_back(std::make_shared<Simulation>(simulationContext));
                 simulationContext.neuralNetworks.push_back(std::make_shared<NeuralNetwork>(numInputs, numOutputs));
-                simulationContext.fitnesses.push_back(0.0f);
             }
         }
         cout << ">Initialised" << endl;
