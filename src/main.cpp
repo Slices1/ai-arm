@@ -201,11 +201,13 @@
     };
     class NeuralNetwork {
         private:
-            const int numLayers = 7; // 6 layers: hidden, hidden, output. input is not technically a layer here.
+            const int numLayers = 7; // 7 layers = 6*hidden + output. input is not technically a layer here.
 
         public:
             std::vector<std::shared_ptr<Layer>> layers;
             NeuralNetwork(const int numInputs, const int numOutputs) { // Constructor
+            // add 1 input, 69 hidden layers and 1 output layer
+                
                 const int numberOfNeurons[numLayers+1] = {numInputs, 10, 9, 8, 7, 6, 5, numOutputs};
                 // initialise layers tensor
                 for (int i = 0; i < numLayers; i++) {
@@ -246,7 +248,6 @@
             float constraintAngle = M_PI/3; // max radians from the centre angle.
             int radius = 30; // payload radius
             int linkageLength = 90; // Arm linkage length
-            int generationCount = 0;
             Vec2 payloadSpawnPosition = Vec2(radius + 110, floorHeight - radius);
             Vec2 targetPosition = Vec2(1000.0f, floorHeight - radius);
             
@@ -266,6 +267,7 @@
             float crossOverRate;
             float survivabilityModifier = 0.5f; // the percentage of the population that will survive to the next generation.
 
+            int generationCount = 0;
             int numOfGenerationsToTrain;
             int showEveryNthGeneration; // the n value in 'display simulations every nth generation'
             float proportionAgentsToDisplay;
@@ -1106,6 +1108,7 @@
         if (kiss_button_event(&guiContext.buttonStartTraining, &guiContext.e, &guiContext.draw)) {
             simulationContext.numOfGenerationsToTrain = atoi(guiContext.trainForNGenerationsEntry.text);
             simulationContext.showEveryNthGeneration = atoi(guiContext.showEveryNthGenerationEntry.text);
+            if (simulationContext.showEveryNthGeneration == 0) {simulationContext.showEveryNthGeneration = 1;} // avoid divide by zero errors
             disable_popup(guiContext);
             simulationContext.isTraining = true; // can't call training_loop() from here as we'd get circular dependency
         }
@@ -1413,15 +1416,3 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-
-
-
-
-
-
-// added relu
-// added targetPosition variable and label
-// theres a bias for the arm to fall to the right after adding relu despite it not affecting the output layer (or atleast thats how it should work).
-// its working
-// I changed brain size
-// I reduced mutation rate
