@@ -153,6 +153,20 @@
         return dateStream.str(); // Convert stream to string
     }
 
+    vector<string> getLineVectorFromCSVLine(string line) {
+        vector<string> lineVector;
+        string word = "";
+        for (char x : line) {
+            if (x == ',') {
+                lineVector.push_back(word);
+                word = "";
+            } else {
+                word += x;
+            }
+        }
+        return lineVector;
+    }
+
 // Structs
     typedef struct {
         kiss_hscrollbar slider;
@@ -212,11 +226,11 @@
                     if (i < numNeurons-1) {
                         outputs[i] = optimisedTanh(outputs[i]); // apply activation function
                     }
-
                 }
                 return outputs;
             }
     };
+    
     class NeuralNetwork {
         private:
             const int numLayers = 7; // 7 layers = 6*hidden + output. input is not technically a layer here.
@@ -339,6 +353,9 @@
 
         // Info buttons
             InfoButton infoButtons[MAX_INFOBUTTONS];
+        // Save load buttons
+            kiss_button buttonSave = {0};
+            kiss_button buttonLoad = {0};
         // misc
             int frameDelay = 0;
             int myCounter = 0;
@@ -418,11 +435,13 @@
             // Info buttons
                 kiss_button_new(&infoButtons[0].button, &panelGraphs, "?", 60-7, 597);
                 infoButtons[0].text = "This is the graph panel.\nIt hopes to give insight into\nthe fitness of neural networks\nwith respect to time.\nThe left shows the average";
-                kiss_button_new(&infoButtons[1].button, &panelSimulation, "?", 100, 3);
-                infoButtons[1].text = "The simulation panel displays the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.";
+                kiss_button_new(&infoButtons[1].button, &panelSimulation, "?", 3 + 65*2, 3);
+                infoButtons[1].text = "The simulation panel displays the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe 'Save gen' button saves the current\nneural network generation and\nsettings to a CSV file.\nThe 'Load gen' button loads these\nback from the 'most-recent-...'\nCSV files.";
                 kiss_button_new(&infoButtons[2].button, &panelControls, "?", 1340, 3);
                 infoButtons[2].text = "The control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel...";
-        
+            // Save load buttons
+                kiss_button_new(&buttonSave, &panelSimulation, "Save gen", 3, 3);
+                kiss_button_new(&buttonLoad, &panelSimulation, "Load gen", 3 + 65, 3);
             // MISC
                 kiss_label_new(&fpsLabel, &window, "FPS: 0", 1040, 4);
                 kiss_label_new(&targetPositionLabel, &window, "X", 0, 0);
@@ -1208,16 +1227,7 @@
                 // get next line
                     getline(myFile, line);
                 // split the line into a vector of strings
-                    std::vector<std::string> lineVector;
-                    std::string temp;
-                    for (char j : line) {
-                        if (j == ',') {
-                            lineVector.push_back(temp);
-                            temp = "";
-                        } else {
-                            temp += j;
-                        }
-                    }
+                    std::vector<std::string> lineVector = getLineVectorFromCSVLine(line);
                 // convert the strings to floats
                     std::vector<float> lineFloats;
                     for (auto& j : lineVector) {
@@ -1239,6 +1249,7 @@
         // Close the file
             if (myFile.is_open()) {myFile.close();}
         cout << ">File " << generationFileName << ".csv loaded successfully!" << endl;
+        simulationContext.simulations[0]->reset(); // reset the simulation
         return 0;
     }
 
@@ -1263,19 +1274,6 @@
             for (int i = 0; i < MAX_INPUTTERS; i++) {
                 myFile << guiContext.inputters[i].entry.text << ",";
             }
-            myFile << simulationContext.debug1 << ",";
-            myFile << simulationContext.debug2 << ",";
-            myFile << simulationContext.gravity << ",";
-            myFile << simulationContext.coefOfRestitution << ",";
-            myFile << simulationContext.coefOfFriction << ",";
-            myFile << simulationContext.constraintAngle << ",";
-            myFile << simulationContext.radius << ",";
-            myFile << simulationContext.linkageLength << ",";
-            myFile << simulationContext.mutationRate << ",";
-            myFile << simulationContext.crossOverRate << ",";
-            myFile << simulationContext.survivabilityModifier << ",";
-            myFile << simulationContext.proportionAgentsToDisplay << ",";
-            myFile << simulationContext.proportionAgentsToDisplay << ",";
             // meta data
             myFile << simulationContext.generationCount << ",";
 
@@ -1295,7 +1293,7 @@
         return 0;
     }
 
-        // load the settings and meta data from a file
+    // load the settings and meta data from a file
     int load_settings_and_meta_data(SimulationContext &simulationContext, GUIContext &guiContext, string settingsFileName) {
         // Init new file
             ifstream myFile;
@@ -1311,16 +1309,7 @@
                 string line;
                 getline(myFile, line);
             // split the line into a vector of strings
-                std::vector<std::string> lineVector;
-                std::string temp;
-                for (char j : line) {
-                    if (j == ',') {
-                        lineVector.push_back(temp);
-                        temp = "";
-                    } else {
-                        temp += j;
-                    }
-                }
+                std::vector<std::string> lineVector = getLineVectorFromCSVLine(line);
             // convert the strings to floats
                 std::vector<float> lineFloats;
                 for (auto& j : lineVector) {
@@ -1329,27 +1318,18 @@
             // update the settings and meta data from the floats
                 int index = 0;
                 // read the strings into the entry boxes
-                // guiContext.inputters[0].entry = lineVector[index]; index++;
-                // simulationContext.debug2 = lineVector[index]; index++;
-                // simulationContext.gravity = lineVector[index]; index++;
-                // simulationContext.coefOfRestitution = lineVector[index]; index++;
-                // simulationContext.coefOfFriction = lineVector[index]; index++;
-                // simulationContext.constraintAngle = lineVector[index]; index++;
-                // simulationContext.radius = lineVector[index]; index++;
-                // simulationContext.linkageLength = lineVector[index]; index++;
-                // simulationContext.mutationRate = lineVector[index]; index++;
-                // simulationContext.crossOverRate = lineVector[index]; index++;
-                // simulationContext.survivabilityModifier = lineVector[index]; index++;
-                // simulationContext.proportionAgentsToDisplay = lineVector[index]; index++;
-                // simulationContext.proportionAgentsToDisplay = lineVector[index]; index++;
-
+                for (int i = 0; i < MAX_INPUTTERS; i++) {
+                    strcpy(guiContext.inputters[i].entry.text, lineVector[i].c_str());
+                    update_slider_based_on_entry(guiContext.inputters[i]);
+                }
                 index = 0;
                 // read the floats into the variables
                 simulationContext.debug1 = lineFloats[index]; index++;
                 simulationContext.debug2 = lineFloats[index]; index++;
+                guiContext.frameDelay = lineFloats[index]; index ++; // frame delay is stored in guiContext
+                simulationContext.coefOfFriction = lineFloats[index]; index++;
                 simulationContext.gravity = lineFloats[index]; index++;
                 simulationContext.coefOfRestitution = lineFloats[index]; index++;
-                simulationContext.coefOfFriction = lineFloats[index]; index++;
                 simulationContext.constraintAngle = lineFloats[index]; index++;
                 simulationContext.radius = lineFloats[index]; index++;
                 simulationContext.linkageLength = lineFloats[index]; index++;
@@ -1357,16 +1337,13 @@
                 simulationContext.crossOverRate = lineFloats[index]; index++;
                 simulationContext.survivabilityModifier = lineFloats[index]; index++;
                 simulationContext.proportionAgentsToDisplay = lineFloats[index]; index++;
-                simulationContext.proportionAgentsToDisplay = lineFloats[index]; index++;
-
-
-                // send slider updates
-                for (int i = 0; i < MAX_INPUTTERS; i++) {
-                    update_slider_based_on_entry(guiContext.inputters[i]);
-                }
 
                 // meta data
                 simulationContext.generationCount = lineFloats[index]; index++;
+                // update the gen count
+                string newText = "Generation " + to_string(simulationContext.generationCount);
+                snprintf(guiContext.generationCountLabel.text, sizeof(guiContext.generationCountLabel.text), "%s", newText.c_str());
+
 
         // Close the file
             if (myFile.is_open()) {myFile.close();}
@@ -1426,6 +1403,15 @@
             // info button events
                 for (int i = 0; i<MAX_INFOBUTTONS; i++) {
                     infoButton_event(guiContext.infoButtons[i], guiContext.popupIsActive, guiContext.popupLabel, guiContext.e, guiContext.draw);
+                }
+            // save load button events
+                if (kiss_button_event(&guiContext.buttonSave, &guiContext.e, &guiContext.draw)) {
+                    save_generation(simulationContext);
+                    save_settings_and_meta_data(simulationContext, guiContext);
+                }
+                if (kiss_button_event(&guiContext.buttonLoad, &guiContext.e, &guiContext.draw)) {
+                    load_generation(simulationContext, "most-recent-generation");
+                    load_settings_and_meta_data(simulationContext, guiContext, "most-recent-settings");
                 }
             
             // Inputs
@@ -1548,7 +1534,10 @@
             kiss_label_draw(&guiContext.targetPositionLabel, guiContext.renderer);
         // Draw generation counter label
             kiss_label_draw(&guiContext.generationCountLabel, guiContext.renderer);
-        
+        // Draw save load buttons
+            kiss_button_draw(&guiContext.buttonSave, guiContext.renderer);
+            kiss_button_draw(&guiContext.buttonLoad, guiContext.renderer);
+
         SDL_RenderPresent(guiContext.renderer);
         guiContext.draw = false;
     }
@@ -1643,8 +1632,8 @@ int main(int argc, char **argv) {
             guiContext.targetPositionLabel.rect.x = simulationContext.targetPosition.x;
             guiContext.targetPositionLabel.rect.y = simulationContext.targetPosition.y;
             
-            // string InitialPopupMessage = "            Welcome to Jonah's\n      Computer Science NEA Project\n      AI Controlled Manipulator Arm\n         (That you can train)!\n\nOverview:\nThis GUI is split into 3 separate panels.\n\nThe simulation panel displayes the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel.\n\nClick the ?s to find out more.";
-            // show_popup(InitialPopupMessage, guiContext.popupIsActive, guiContext.popupLabel);
+            string InitialPopupMessage = "            Welcome to Jonah's\n      Computer Science NEA Project\n      AI Controlled Manipulator Arm\n         (That you can train)!\n\nOverview:\nThis GUI is split into 3 separate panels.\n\nThe simulation panel displayes the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel.\n\nClick the ?s to find out more.";
+            show_popup(InitialPopupMessage, guiContext.popupIsActive, guiContext.popupLabel);
         }
         { // Add Simulations
             // inputs: payload Displacement To End Effector. payload Displacement To Target. payload velocity. angles & velos for each joint.
@@ -1656,9 +1645,6 @@ int main(int argc, char **argv) {
             }
         }
         cout << ">Initialised" << endl;
-    // save_generation(simulationContext);
-    load_generation(simulationContext, "most-recent-generation");
-    save_generation(simulationContext);
     // Main loop
     while (!guiContext.quit) {
         // idle_loop() runs the main loop where no training is happening and just the best arm is being displayed.
@@ -1670,4 +1656,3 @@ int main(int argc, char **argv) {
     kiss_clean(&guiContext.objects);
     return 0;
 }
-
