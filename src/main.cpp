@@ -10,6 +10,8 @@
     #include <memory> // for vectors ::make_shared
     #include <vector>
     #include <cstdlib> // for evolve
+    #include <fstream> // for save, load
+    #include <sstream> // for string formatting in save_generation()
 
     
     using namespace std;
@@ -133,6 +135,22 @@
     float ReLU(float x) {
         if (x>0) {return x;}
         return 0;
+    }
+
+    string getDateAndTime() {
+        std::time_t t = std::time(0);
+        std::tm* now = std::localtime(&t);
+        
+        // Use stringstream to handle string concatenation
+        std::ostringstream dateStream;
+        dateStream << (now->tm_year + 1900) << '-'
+                << (now->tm_mon + 1) << '-'
+                << now->tm_mday << '-'
+                << now->tm_hour << '-'
+                << now->tm_min << '-'
+                << now->tm_sec;
+        
+        return dateStream.str(); // Convert stream to string
     }
 
 // Structs
@@ -421,6 +439,7 @@
             
         }
     };
+
 
 // Simulation utility functions
 
@@ -893,7 +912,6 @@
         }
     }
 
-
     // Perform crossover to create a child network
     std::shared_ptr<NeuralNetwork> crossover(const std::shared_ptr<NeuralNetwork> &parent1, const std::shared_ptr<NeuralNetwork> &parent2, const float &crossOverRate) {
         std::shared_ptr<NeuralNetwork> child = std::make_shared<NeuralNetwork>(*parent1); // Use deep copy constructor
@@ -1008,6 +1026,18 @@
         }
     }
 
+    void update_slider_based_on_entry(Inputter &inputter) {
+        // set the slider's value equal to the entry.text 
+            float value = atof(inputter.entry.text); //string to float cast
+            if (value >= inputter.defaultValue + (inputter.sliderRange / 2.0f)) {
+                inputter.slider.fraction = 1.03f;
+            } else if (value <= inputter.defaultValue - (inputter.sliderRange / 2.0f)) {
+                inputter.slider.fraction = -0.03f;
+            } else {
+                inputter.slider.fraction = (value - inputter.defaultValue)/inputter.sliderRange + 0.5f; // calculates the new slider's pos
+            }
+    }
+
     void slider_event(Inputter &inputter, SDL_Event &e, int &draw) {
         if (kiss_hscrollbar_event(&inputter.slider, &e, &draw)) {
             // set the entry->text equal to the slider's value
@@ -1052,14 +1082,7 @@
     void entry_event(Inputter &inputter, SDL_Event &e, int &draw) {
         if (kiss_entry_event(&inputter.entry, &e, &draw)) {
             // set the slider's value equal to the entry.text 
-            float value = atof(inputter.entry.text); //string to float cast
-            if (value >= inputter.defaultValue + (inputter.sliderRange / 2.0f)) {
-                inputter.slider.fraction = 1.03f;
-            } else if (value <= inputter.defaultValue - (inputter.sliderRange / 2.0f)) {
-                inputter.slider.fraction = -0.03f;
-            } else {
-                inputter.slider.fraction = (value - inputter.defaultValue)/inputter.sliderRange + 0.5f; // calculates the new slider's pos
-            }
+            update_slider_based_on_entry(inputter);
             draw = true;
         }
     }
@@ -1121,6 +1144,235 @@
         }
     }
 
+// Save and Load
+    // save the generation to a file
+    int save_generation(SimulationContext &simulationContext) {
+        // Init new file
+            ofstream myFile;
+        // Get date
+            string date = getDateAndTime();
+
+        // Make file name
+            string name = "saved-model_date-" + date + "_size-14-10-9-8-7-6-5-5";
+        // Open file
+            myFile.open ("../../saved-generations/" + name + ".csv");
+        // Validate opening
+            if (!myFile.is_open()) {
+                cout << ">Error opening file!" << endl;
+                return 1;
+            }
+            cout << ">File " << name << ".csv opened successfully!" << endl;
+        // Write the file
+            for (auto& neuralNetwork : simulationContext.neuralNetworks) {
+                for (auto& layer : neuralNetwork->layers) {
+                    for (size_t i = 0; i < layer->weights.size(); ++i) {
+                        for (size_t j = 0; j < layer->weights[i].size(); ++j) {
+                            myFile << layer->weights[i][j] << ","; // write weight
+                        }
+                        myFile << layer->biases[i] << ","; // write bias
+                    }
+                }
+                myFile << endl;
+            }
+        // Close the file
+            if (myFile.is_open()) {myFile.close();}
+        // Write to most-recent-generation.csv
+            ifstream src;
+            ofstream dst;
+
+            src.open("../../saved-generations/" + name + ".csv", ios::in | ios::binary);
+            dst.open("../../saved-generations/most-recent-generation.csv", ios::out | ios::binary);
+            dst << src.rdbuf();
+
+            src.close();
+            dst.close();
+        cout << ">File " << name << ".csv saved successfully!" << endl;
+        return 0;
+    }
+    
+    // load the generation from a file
+    int load_generation(SimulationContext &simulationContext, string generationFileName) {
+        // Init new file
+            ifstream myFile;
+        // Open file
+            myFile.open ("../../saved-generations/" + generationFileName + ".csv");
+        // Validate opening
+            if (!myFile.is_open()) {
+                cout << ">Error opening file!" << endl;
+                return 1;
+            }
+            cout << ">File " << generationFileName << ".csv opened successfully!" << endl;
+        // Load from the csv file
+            string line;
+            for (int i = 0; i < simulationContext.numInstances; i++) {
+                // get next line
+                    getline(myFile, line);
+                // split the line into a vector of strings
+                    std::vector<std::string> lineVector;
+                    std::string temp;
+                    for (char j : line) {
+                        if (j == ',') {
+                            lineVector.push_back(temp);
+                            temp = "";
+                        } else {
+                            temp += j;
+                        }
+                    }
+                // convert the strings to floats
+                    std::vector<float> lineFloats;
+                    for (auto& j : lineVector) {
+                        lineFloats.push_back(std::stof(j));
+                    }
+                // update the neural networks from the floats
+                    int index = 0;
+                    for (size_t j = 0; j < simulationContext.neuralNetworks[i]->layers.size(); ++j) {
+                        for (size_t k = 0; k < simulationContext.neuralNetworks[i]->layers[j]->weights.size(); ++k) {
+                            for (size_t l = 0; l < simulationContext.neuralNetworks[i]->layers[j]->weights[k].size(); ++l) {
+                                simulationContext.neuralNetworks[i]->layers[j]->weights[k][l] = lineFloats[index]; // load weight
+                                index++;
+                            }
+                            simulationContext.neuralNetworks[i]->layers[j]->biases[k] = lineFloats[index]; // load bias
+                            index++;
+                        }
+                    }
+            }
+        // Close the file
+            if (myFile.is_open()) {myFile.close();}
+        cout << ">File " << generationFileName << ".csv loaded successfully!" << endl;
+        return 0;
+    }
+
+    // save the settings and meta data to a file
+    int save_settings_and_meta_data(SimulationContext &simulationContext, GUIContext &guiContext) {
+        // Init new file
+            ofstream myFile;
+        // Get date
+            string date = getDateAndTime();
+        // Make file name
+            string name = "saved-settings_date-" + date;
+        // Open file
+            myFile.open ("../../saved-settings/" + name + ".csv");
+        // Validate opening
+            if (!myFile.is_open()) {
+                cout << ">Error opening file!" << endl;
+                return 1;
+            }
+            cout << ">File " << name << ".csv opened successfully!" << endl;
+        // Write the file
+            // settings
+            for (int i = 0; i < MAX_INPUTTERS; i++) {
+                myFile << guiContext.inputters[i].entry.text << ",";
+            }
+            myFile << simulationContext.debug1 << ",";
+            myFile << simulationContext.debug2 << ",";
+            myFile << simulationContext.gravity << ",";
+            myFile << simulationContext.coefOfRestitution << ",";
+            myFile << simulationContext.coefOfFriction << ",";
+            myFile << simulationContext.constraintAngle << ",";
+            myFile << simulationContext.radius << ",";
+            myFile << simulationContext.linkageLength << ",";
+            myFile << simulationContext.mutationRate << ",";
+            myFile << simulationContext.crossOverRate << ",";
+            myFile << simulationContext.survivabilityModifier << ",";
+            myFile << simulationContext.proportionAgentsToDisplay << ",";
+            myFile << simulationContext.proportionAgentsToDisplay << ",";
+            // meta data
+            myFile << simulationContext.generationCount << ",";
+
+        // Close the file
+            if (myFile.is_open()) {myFile.close();}
+        // Write to most-recent-generation.csv
+            ifstream src;
+            ofstream dst;
+
+            src.open("../../saved-settings/" + name + ".csv", ios::in | ios::binary);
+            dst.open("../../saved-settings/most-recent-settings.csv", ios::out | ios::binary);
+            dst << src.rdbuf();
+
+            src.close();
+            dst.close();
+        cout << ">File " << name << ".csv saved successfully!" << endl;
+        return 0;
+    }
+
+        // load the settings and meta data from a file
+    int load_settings_and_meta_data(SimulationContext &simulationContext, GUIContext &guiContext, string settingsFileName) {
+        // Init new file
+            ifstream myFile;
+        // Open file
+            myFile.open ("../../saved-settings/" + settingsFileName + ".csv");
+        // Validate opening
+            if (!myFile.is_open()) {
+                cout << ">Error opening file!" << endl;
+                return 1;
+            }
+            cout << ">File " << settingsFileName << ".csv opened successfully!" << endl;
+        // Load from the csv file
+                string line;
+                getline(myFile, line);
+            // split the line into a vector of strings
+                std::vector<std::string> lineVector;
+                std::string temp;
+                for (char j : line) {
+                    if (j == ',') {
+                        lineVector.push_back(temp);
+                        temp = "";
+                    } else {
+                        temp += j;
+                    }
+                }
+            // convert the strings to floats
+                std::vector<float> lineFloats;
+                for (auto& j : lineVector) {
+                    lineFloats.push_back(std::stof(j));
+                }
+            // update the settings and meta data from the floats
+                int index = 0;
+                // read the strings into the entry boxes
+                // guiContext.inputters[0].entry = lineVector[index]; index++;
+                // simulationContext.debug2 = lineVector[index]; index++;
+                // simulationContext.gravity = lineVector[index]; index++;
+                // simulationContext.coefOfRestitution = lineVector[index]; index++;
+                // simulationContext.coefOfFriction = lineVector[index]; index++;
+                // simulationContext.constraintAngle = lineVector[index]; index++;
+                // simulationContext.radius = lineVector[index]; index++;
+                // simulationContext.linkageLength = lineVector[index]; index++;
+                // simulationContext.mutationRate = lineVector[index]; index++;
+                // simulationContext.crossOverRate = lineVector[index]; index++;
+                // simulationContext.survivabilityModifier = lineVector[index]; index++;
+                // simulationContext.proportionAgentsToDisplay = lineVector[index]; index++;
+                // simulationContext.proportionAgentsToDisplay = lineVector[index]; index++;
+
+                index = 0;
+                // read the floats into the variables
+                simulationContext.debug1 = lineFloats[index]; index++;
+                simulationContext.debug2 = lineFloats[index]; index++;
+                simulationContext.gravity = lineFloats[index]; index++;
+                simulationContext.coefOfRestitution = lineFloats[index]; index++;
+                simulationContext.coefOfFriction = lineFloats[index]; index++;
+                simulationContext.constraintAngle = lineFloats[index]; index++;
+                simulationContext.radius = lineFloats[index]; index++;
+                simulationContext.linkageLength = lineFloats[index]; index++;
+                simulationContext.mutationRate = lineFloats[index]; index++;
+                simulationContext.crossOverRate = lineFloats[index]; index++;
+                simulationContext.survivabilityModifier = lineFloats[index]; index++;
+                simulationContext.proportionAgentsToDisplay = lineFloats[index]; index++;
+                simulationContext.proportionAgentsToDisplay = lineFloats[index]; index++;
+
+
+                // send slider updates
+                for (int i = 0; i < MAX_INPUTTERS; i++) {
+                    update_slider_based_on_entry(guiContext.inputters[i]);
+                }
+
+                // meta data
+                simulationContext.generationCount = lineFloats[index]; index++;
+
+        // Close the file
+            if (myFile.is_open()) {myFile.close();}
+        cout << ">File " << settingsFileName << ".csv loaded successfully!" << endl;
+        return 0;
+    }
 // Main loop function
     void check_if_program_quitted(GUIContext &guiContext) {
         if (guiContext.quit) {
@@ -1404,6 +1656,9 @@ int main(int argc, char **argv) {
             }
         }
         cout << ">Initialised" << endl;
+    // save_generation(simulationContext);
+    load_generation(simulationContext, "most-recent-generation");
+    save_generation(simulationContext);
     // Main loop
     while (!guiContext.quit) {
         // idle_loop() runs the main loop where no training is happening and just the best arm is being displayed.
