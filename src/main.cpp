@@ -203,13 +203,13 @@
         kiss_label titleLabel = {0};
         kiss_label yAxisMinLabel = {0};
         kiss_label yAxisMaxLabel = {0};
-        /*const*/ float graphWidth = 350.0f;
+        /*const*/ float graphWidth = 475.0f;
         /*const*/ float graphHeight = 150.0f;
         /*const*/ int padding = 5;
         
         public:
         LineGraph(Vec2 position1, string graphTitleName, kiss_window &panelGraphs) : position(position1) {
-            kiss_label_new(&titleLabel, &panelGraphs, const_cast<char *>(graphTitleName.c_str()), position.x + graphWidth/4, position.y - kiss_textfont.fontheight); // place centre middle above graph
+            kiss_label_new(&titleLabel, &panelGraphs, const_cast<char *>(graphTitleName.c_str()), position.x + graphWidth/2 - 4*strlen(graphTitleName.c_str()), position.y - kiss_textfont.fontheight); // place centre middle above graph
             kiss_label_new(&yAxisMaxLabel, &panelGraphs, "max", position.x - 45, position.y);
             kiss_label_new(&yAxisMinLabel, &panelGraphs, "min", position.x - 45, position.y + graphHeight- kiss_textfont.fontheight);
         }
@@ -235,8 +235,6 @@
                     maxValueStringStream << round(maxValue);
                     newText = maxValueStringStream.str();
                     snprintf(yAxisMaxLabel.text, sizeof(yAxisMaxLabel.text), "%s", newText.c_str());
-
-
         }
         
         void drawGraph(SDL_Renderer *renderer) {
@@ -524,19 +522,18 @@
             }
 
             // Info buttons
-                kiss_button_new(&infoButtons[0].button, &panelGraphs, "?", 60-7, 597);
-                infoButtons[0].text = "This is the graph panel.\nIt hopes to give insight into\nthe fitness of neural networks\nwith respect to time.\nThe left shows the average";
+                kiss_button_new(&infoButtons[0].button, &panelGraphs, "?", 3, 597+1);
+                infoButtons[0].text = "This is the graph panel.\nIt hopes to give insight into\nthe fitness of neural networks\nwith respect to time.\n\nThe x-axis is the generation.";
                 kiss_button_new(&infoButtons[1].button, &panelSimulation, "?", 3 + 65*2, 3);
-                infoButtons[1].text = "The simulation panel displays the\nevaluation process of each neural network\nand allows the user to see training,\nvalues, objectives & fitness criteria\nin real time.\n\nThe 'Save gen' button saves the current\nneural network generation and\nsettings to a CSV file.\nThe 'Load gen' button loads these\nback from the 'most-recent-...'\nCSV files.";
-                kiss_button_new(&infoButtons[2].button, &panelControls, "?", 1340, 3);
-                infoButtons[2].text = "The control panel is where you are\nable to see all of these options.\nStart training from the top\nof this panel...";
-            // Save load buttons
+                infoButtons[1].text = "The simulation panel displays the\nevaluation process of each neural network\nand allows the user to see training\nin real time.\n\nThe 'Save gen' button saves the current\nneural network generation and\nsettings to a CSV file.\nThe 'Load gen' button loads these\nback from the 'most-recent-...'\nCSV files.";
+                kiss_button_new(&infoButtons[2].button, &panelControls, "?", 1117+2, 3);
+                infoButtons[2].text = "The control panel is where you are\nable to see all of the values you\ncan control as the user.\n\nStart training at the bottom\nof this panel.";
+            // Save load buttonsThe left shows the average"
                 kiss_button_new(&buttonSave, &panelSimulation, "Save gen", 3, 3);
                 kiss_button_new(&buttonLoad, &panelSimulation, "Load gen", 3 + 65, 3);
             // line graphs
-                fitnessGraph = LineGraph(Vec2(55, 640), "Fitness Over Time", panelGraphs);
-                geneticDiversityGraph = LineGraph(Vec2(55 + 350 + 100, 640), "Genetic Diversity Over Time", panelGraphs);
-                // geneticDiversityGraph.appendValue(1.0f); // show min value
+                fitnessGraph = LineGraph(Vec2(4+45+23, 640), "Fitness Over Time", panelGraphs);
+                geneticDiversityGraph = LineGraph(Vec2(4+45+25+475+45+23, 640), "Genetic Diversity Over Time", panelGraphs);
             // MISC
                 kiss_label_new(&fpsLabel, &window, "FPS: 0", 1040, 4);
                 kiss_label_new(&targetPositionLabel, &window, "X", 0, 0);
@@ -634,9 +631,8 @@
                     angularVelocities.emplace_back(0.0f);
                     linkages.emplace_back(std::make_shared<Collider>(Collider(Vec2(simulationContext.armOriginPos.x, simulationContext.armOriginPos.y-i*simulationContext.linkageLength),Vec2(simulationContext.armOriginPos.x, simulationContext.armOriginPos.y-(i+1)*simulationContext.linkageLength))));
                 }
-                // endEffector = Collider(Vec2(558.0-simulationContext.linkageLength/2,591-simulationContext.numOfLinkages*simulationContext.linkageLength),Vec2(558+simulationContext.linkageLength/2.0,591-simulationContext.numOfLinkages*simulationContext.linkageLength));
-                // test temporary displacement
-                angles[simulationContext.numOfLinkages-1] += 0.2f; // remove later
+                endEffector = Collider(Vec2(558-simulationContext.linkageLength/2,591-simulationContext.numOfLinkages*simulationContext.linkageLength),Vec2(558+simulationContext.linkageLength/2.0,591-simulationContext.numOfLinkages*simulationContext.linkageLength));
+                endEffectorMiddle = Vec2((endEffector.startPos.x + endEffector.endPos.x)/2, (endEffector.startPos.y + endEffector.endPos.y)/2);
             }
             
             void update() {
@@ -648,15 +644,16 @@
                             angularVelocities[i] += 0.0001*(centreOfGravity - linkages[i]->startPos.x)*simulationContext.gravity/simulationContext.linkageLength;
                         }
                     }
-                // resolve top link gravity (bc of end effector)
+                {// resolve top link gravity (bc of end effector)
                     float centreOfGravity = (linkages[simulationContext.numOfLinkages-1]->startPos.x + 3*linkages[simulationContext.numOfLinkages-1]->endPos.x)/4; // centre of gravity x position is 3/4 of the way along the top link because of the end effector.
                     // apply this moment to all joints as all joints are below this joint so will experience the force
                     // there is a multiple of 2 since this is the mass of the last link + the mass of the end effector
                     for (int i=0; i<simulationContext.numOfLinkages; i++) {
                         angularVelocities[i] += 2*0.0001*(centreOfGravity - linkages[i]->startPos.x)*simulationContext.gravity/simulationContext.linkageLength;
                     }
-                    // apply offset moment to the top link to avoid it being reaaaaallly slow
+                    // increase moment to the top link to avoid it being reaaaaallly slow
                     angularVelocities[simulationContext.numOfLinkages-1] += 0.0001*(centreOfGravity - linkages[simulationContext.numOfLinkages-1]->startPos.x)*simulationContext.gravity/simulationContext.linkageLength;
+                }
                 // apply friction, update and constrain angles based on angular velocities. Also update some positions for calculation purposes
                     Vec2 prevPos = simulationContext.armOriginPos; // initialised to ground attachment point. Used to calculate relative position of succeeding links.
                     float prevAngle = 0.0f; // initialised to base attachment angle. Used to calculate relative angle of succeeding links.
@@ -753,6 +750,7 @@
         public:
             Vec2 prevPosition;
             Vec2 position = simulationContext.payloadSpawnPosition;
+            Vec2 prevVelocity;
             Vec2 velocity;
 
         
@@ -835,6 +833,7 @@
             void update(Arm &arm) {
                     // Start Semi-Implicit Euler Integration
                         prevPosition = position;
+                        prevVelocity = velocity;
                         velocity.y += simulationContext.gravity;
                     // Apply electromagnet force proportional to end effector displacement
                         if (arm.endEffectorEnabled) {
@@ -912,23 +911,27 @@
                 // Draw payload
                 DrawCircle(renderer, payload.position.x, payload.position.y, simulationContext.radius);
                 // Draw arm
-                // Draw all linkages but last
-                for (int i=0; i<simulationContext.numOfLinkages-1; i++) {
-                    SDL_RenderDrawLine(renderer, arm.linkages[i]->startPos.x,arm.linkages[i]->startPos.y,arm.linkages[i]->endPos.x,arm.linkages[i]->endPos.y);
-                    // code to show expanded collider for collision detection for debugging
-                    // Vec2 expandedStartPos = arm.linkages[i]->startPos - arm.linkages[i]->direction*simulationContext.radius;
-                    // Vec2 expandedEndPos = arm.linkages[i]->endPos + arm.linkages[i]->direction*simulationContext.radius;
-                    // SDL_RenderDrawLine(renderer, expandedStartPos.x,expandedStartPos.y,expandedEndPos.x,expandedEndPos.y);
-                }
-                // Draw last arm linkage at full length. In reality it only goes half way but this reduces jank collisions with the payload.
-                Vec2 start = arm.linkages[simulationContext.numOfLinkages-1]->startPos;
-                SDL_RenderDrawLine(renderer, start.x, start.y, arm.endEffectorMiddle.x, arm.endEffectorMiddle.y);
-                // Draw end effector
-                // Set colour blue if enabled, black if disabled
-                if (arm.endEffectorEnabled) {
-                    SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
-                }
-                SDL_RenderDrawLine(renderer, arm.endEffector.startPos.x,arm.endEffector.startPos.y,arm.endEffector.endPos.x,arm.endEffector.endPos.y);
+                    // Draw all linkages but last
+                        for (int i=0; i<simulationContext.numOfLinkages-1; i++) {
+                            SDL_RenderDrawLine(renderer, arm.linkages[i]->startPos.x,arm.linkages[i]->startPos.y,arm.linkages[i]->endPos.x,arm.linkages[i]->endPos.y);
+                            // code to show expanded collider for collision detection for debugging
+                            // Vec2 expandedStartPos = arm.linkages[i]->startPos - arm.linkages[i]->direction*simulationContext.radius;
+                            // Vec2 expandedEndPos = arm.linkages[i]->endPos + arm.linkages[i]->direction*simulationContext.radius;
+                            // SDL_RenderDrawLine(renderer, expandedStartPos.x,expandedStartPos.y,expandedEndPos.x,expandedEndPos.y);
+                        }
+                        // Draw last arm linkage at full length. In reality it only goes half way but this reduces jank collisions with the payload.
+                        Vec2 start = arm.linkages[simulationContext.numOfLinkages-1]->startPos;
+                        SDL_RenderDrawLine(renderer, start.x, start.y, arm.endEffectorMiddle.x, arm.endEffectorMiddle.y);
+                    // Draw joint circles
+                        for (int i=0; i<simulationContext.numOfLinkages; i++) {
+                            DrawCircle(renderer, arm.linkages[i]->startPos.x,arm.linkages[i]->startPos.y, simulationContext.linkageLength/10);
+                        }
+                    // Draw end effector
+                        // Set colour blue if enabled, black if disabled
+                        if (arm.endEffectorEnabled) {
+                            SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+                        }
+                        SDL_RenderDrawLine(renderer, arm.endEffector.startPos.x,arm.endEffector.startPos.y,arm.endEffector.endPos.x,arm.endEffector.endPos.y);
             }
             void update_fitness(const int &frame) {
                 // optimal solution: end effector close to ball
@@ -951,6 +954,12 @@
                     Vec2 payloadDisplacementToTarget = simulationContext.targetPosition - payload.position;
                     fitness += - LengthOfVector(payloadDisplacementToTarget)/(7*45);
                 }
+                // penalise for high accelerations after 1 second.
+                // the 1 second delay is to allow the arm to pick up the ball.
+                if ((payload.velocity - payload.prevVelocity).magnitude_squared() > 20 && frame > 45*1) {
+                    fitness -= 10;
+                }
+
             }
             void advance(const int &frame) {
                 payload.update(arm);
@@ -961,15 +970,24 @@
             void reset() {
                 // Reset arm, payload, and other simulation variables
                     // arm
-                        // reset angles and angular velocities
+                        // reset angles, angular velocities and linkage colliders
                         for (int i=0; i<simulationContext.numOfLinkages; i++) {
                             arm.angles[i] = 0.0f;
                             arm.angularVelocities[i] = 0.0f;
+                            arm.linkages[i] = std::make_shared<Collider>(Collider(Vec2(simulationContext.armOriginPos.x, simulationContext.armOriginPos.y-i*simulationContext.linkageLength),Vec2(simulationContext.armOriginPos.x, simulationContext.armOriginPos.y-(i+1)*simulationContext.linkageLength)));
                         }
+
+                    // arm end effector
+                        arm.endEffector = Collider(Vec2(558-simulationContext.linkageLength/2,591-simulationContext.numOfLinkages*simulationContext.linkageLength),Vec2(558+simulationContext.linkageLength/2.0,591-simulationContext.numOfLinkages*simulationContext.linkageLength));
+                        arm.endEffectorMiddle = Vec2((arm.endEffector.startPos.x + arm.endEffector.endPos.x)/2, (arm.endEffector.startPos.y + arm.endEffector.endPos.y)/2);
+                        arm.endEffectorEnabled = true;
+
                     // payload
                         // reset position and velocity
                         payload.position = simulationContext.payloadSpawnPosition;
+                        payload.prevPosition = simulationContext.payloadSpawnPosition;
                         payload.velocity = Vec2(0.0f, 0.0f);
+                        
                     // fitness
                         fitness = 0.0f;
             }
@@ -982,16 +1000,15 @@
             // payload-targetPos displacement.
             // payload velo
             // angles & velos for each joint
-            Vec2 payloadDisplacementToEndEffector = simulationContext.simulations[i]->arm.linkages[simulationContext.numOfLinkages-1]->endPos - simulationContext.simulations[i]->payload.position;
+            Vec2 payloadDisplacementToEndEffector = simulationContext.simulations[i]->arm.endEffectorMiddle - simulationContext.simulations[i]->payload.position;
             Vec2 payloadDisplacementToTarget = Vec2(1000.0f, simulationContext.floorHeight) - simulationContext.simulations[i]->payload.position;
             vector<float> inputs = {payloadDisplacementToEndEffector.x, payloadDisplacementToEndEffector.y,
                                     payloadDisplacementToTarget.x, payloadDisplacementToTarget.y,
                                     simulationContext.simulations[i]->payload.velocity.x, simulationContext.simulations[i]->payload.velocity.y};
-            for (int j=0; j<5; j++) {
+            for (int j=0; j<simulationContext.numOfLinkages; j++) {
                 inputs.push_back(simulationContext.simulations[i]->arm.angles[j]);
                 inputs.push_back(simulationContext.simulations[i]->arm.angularVelocities[j]);
             }
-
             // calculate outputs
             vector<float> outputs = simulationContext.neuralNetworks[i]->CalculateOutputs(inputs);
 
@@ -1137,13 +1154,13 @@
 
 // Event handlers
     // void button_event(kiss_button &button, SDL_Event &e, int &draw, int &quit, int &myCounter) {
-    //     if (kiss_button_event(&button, &e, &draw)) {
-    //         myCounter+=1;
-    //         string newText = to_string(myCounter);
-    //         snprintf(button.text, sizeof(button.text), "%s", newText.c_str());
-    //         strcpy(button.text, (std::to_string(myCounter)).c_str());
-    //     }
-    // }
+        //     if (kiss_button_event(&button, &e, &draw)) {
+        //         myCounter+=1;
+        //         string newText = to_string(myCounter);
+        //         snprintf(button.text, sizeof(button.text), "%s", newText.c_str());
+        //         strcpy(button.text, (std::to_string(myCounter)).c_str());
+        //     }
+        // }
 
     void update_slider_based_on_entry(Inputter &inputter) {
         // set the slider's value equal to the entry.text 
@@ -1168,7 +1185,7 @@
         }
     }
 
-    void control_panel_slider_event(GUIContext &guiContext) { //this passes the dereferenced inputters array and it works but not sure why.
+    void control_panel_slider_event(GUIContext &guiContext, SimulationContext &simulationContext) {
         if (kiss_vscrollbar_event(&guiContext.controlPanelScrollbar, &guiContext.e, &guiContext.draw)) {
             float multiplier = 400.0f;
             float amountScrolled = guiContext.controlPanelScrollbar.fraction; 
@@ -1236,7 +1253,7 @@
     void start_training_popup_button_event(GUIContext &guiContext) {
         if (kiss_button_event(&guiContext.buttonStartTrainingPopup, &guiContext.e, &guiContext.draw)) {
             // show popup
-            show_popup("Please enter the training options:\n\nTrain for           generations.\n\nShow every           th generation.\n\n-1 to not show anything.\n\n\nEach generation takes the simulation\n20 seconds real time or max 0.5 seconds\ntraining time.\n\nThere will be a button to stop the\ntraining session early.", guiContext.popupIsActive, guiContext.popupLabel);
+            show_popup("Please enter the training options:\n\nTrain for           generations.\n\nShow every           th generation.\n\n-1 to not show anything.\n\n\nEach generation takes the simulation\n20 seconds real time or ~1 second\nwhen not displaying.\n\nThere will be a button to stop the\ntraining session early.", guiContext.popupIsActive, guiContext.popupLabel);
             // change popup "Okay" button text to "Cancel"
             string newText = "Cancel";
             snprintf(guiContext.popupButton.text, sizeof(guiContext.popupButton.text), "%s", newText.c_str());
@@ -1372,7 +1389,8 @@
         // Write the file
             // settings
                 for (int i = 0; i < MAX_INPUTTERS; i++) {
-                    myFile << guiContext.inputters[i].entry.text << ",";
+                    if (strlen(guiContext.inputters[i].entry.text) == 0) {myFile << "0,";  }
+                    else {myFile << guiContext.inputters[i].entry.text << ",";  }
                 }
             // meta data
                 // gen count
@@ -1417,63 +1435,64 @@
             }
             cout << ">File " << settingsFileName << ".csv opened successfully!" << endl;
         // Load from the csv file
+            // settings    
                 string line;
                 getline(myFile, line);
-            // split the line into a vector of strings
-                std::vector<std::string> lineVector = getLineVectorFromCSVLine(line);
-            // convert the strings to floats
-                std::vector<float> lineFloats;
-                for (auto& j : lineVector) {
-                    lineFloats.push_back(std::stof(j));
-                }
-            // update the settings and meta data from the floats
-                int index = 0;
-                // read the strings into the entry boxes
-                for (int i = 0; i < MAX_INPUTTERS; i++) {
-                    strcpy(guiContext.inputters[i].entry.text, lineVector[i].c_str());
-                    update_slider_based_on_entry(guiContext.inputters[i]);
-                }
-                index = 0;
-                // read the floats into the variables
-                simulationContext.debug1 = lineFloats[index]; index++;
-                simulationContext.debug2 = lineFloats[index]; index++;
-                guiContext.frameDelay = lineFloats[index]; index ++; // frame delay is stored in guiContext
-                simulationContext.coefOfFriction = lineFloats[index]; index++;
-                simulationContext.gravity = lineFloats[index]; index++;
-                simulationContext.coefOfRestitution = lineFloats[index]; index++;
-                simulationContext.constraintAngle = lineFloats[index]; index++;
-                simulationContext.radius = lineFloats[index]; index++;
-                simulationContext.linkageLength = lineFloats[index]; index++;
-                simulationContext.mutationRate = lineFloats[index]; index++;
-                simulationContext.crossOverRate = lineFloats[index]; index++;
-                simulationContext.survivabilityModifier = lineFloats[index]; index++;
-                simulationContext.proportionAgentsToDisplay = lineFloats[index]; index++;
+                // split the line into a vector of strings
+                    std::vector<std::string> lineVector = getLineVectorFromCSVLine(line);
+                // convert the strings to floats
+                    std::vector<float> lineFloats;
+                    for (auto& j : lineVector) {
+                        lineFloats.push_back(std::stof(j));
+                    }
+                // update the settings and meta data from the floats
+                    int index = 0;
+                    // read the strings into the entry boxes
+                    for (int i = 0; i < MAX_INPUTTERS; i++) {
+                        strcpy(guiContext.inputters[i].entry.text, lineVector[i].c_str());
+                        update_slider_based_on_entry(guiContext.inputters[i]);
+                    }
+                    index = 0;
+                    // read the floats into the variables
+                    simulationContext.debug1 = lineFloats[index]; index++;
+                    simulationContext.debug2 = lineFloats[index]; index++;
+                    guiContext.frameDelay = lineFloats[index]; index ++; // frame delay is stored in guiContext
+                    simulationContext.coefOfFriction = lineFloats[index]; index++;
+                    simulationContext.gravity = lineFloats[index]; index++;
+                    simulationContext.coefOfRestitution = lineFloats[index]; index++;
+                    simulationContext.constraintAngle = lineFloats[index]; index++;
+                    simulationContext.radius = lineFloats[index]; index++;
+                    simulationContext.linkageLength = lineFloats[index]; index++;
+                    simulationContext.mutationRate = lineFloats[index]; index++;
+                    simulationContext.crossOverRate = lineFloats[index]; index++;
+                    simulationContext.survivabilityModifier = lineFloats[index]; index++;
+                    simulationContext.proportionAgentsToDisplay = lineFloats[index]; index++;
 
-                // meta data
-                    // gen count
-                        simulationContext.generationCount = lineFloats[index]; index++;
-                    // update the gen count
-                        string newText = "Generation " + to_string(simulationContext.generationCount);
-                        snprintf(guiContext.generationCountLabel.text, sizeof(guiContext.generationCountLabel.text), "%s", newText.c_str());
-                    // graphs
-                        // fitness graph
-                            guiContext.fitnessGraph.resetValues();
-                            getline(myFile, line);
-                            // split the line into a vector of strings
-                                lineVector = getLineVectorFromCSVLine(line);
-                            // convert to floats and pass to graph
-                                for (auto& j : lineVector) {
-                                    guiContext.fitnessGraph.appendValue(std::stof(j));
-                                }
-                        // gen diversity graph
-                            guiContext.geneticDiversityGraph.resetValues();
-                            getline(myFile, line);
-                            // split the line into a vector of strings
-                                lineVector = getLineVectorFromCSVLine(line);
-                            // convert to floats and pass to graph
-                                for (auto& j : lineVector) {
-                                    guiContext.geneticDiversityGraph.appendValue(std::stof(j));
-                                }
+            // meta data
+                // gen count
+                    simulationContext.generationCount = lineFloats[index]; index++;
+                // update the gen count
+                    string newText = "Generation " + to_string(simulationContext.generationCount);
+                    snprintf(guiContext.generationCountLabel.text, sizeof(guiContext.generationCountLabel.text), "%s", newText.c_str());
+                // graphs
+                    // fitness graph
+                        guiContext.fitnessGraph.resetValues();
+                        getline(myFile, line);
+                        // split the line into a vector of strings
+                            lineVector = getLineVectorFromCSVLine(line);
+                        // convert to floats and pass to graph
+                            for (auto& j : lineVector) {
+                                guiContext.fitnessGraph.appendValue(std::stof(j));
+                            }
+                    // gen diversity graph
+                        guiContext.geneticDiversityGraph.resetValues();
+                        getline(myFile, line);
+                        // split the line into a vector of strings
+                            lineVector = getLineVectorFromCSVLine(line);
+                        // convert to floats and pass to graph
+                            for (auto& j : lineVector) {
+                                guiContext.geneticDiversityGraph.appendValue(std::stof(j));
+                            }
 
         // Close the file
             if (myFile.is_open()) {myFile.close();}
@@ -1516,7 +1535,7 @@
                 slider_event(guiContext.inputters[i], guiContext.e, guiContext.draw);
                 entry_event(guiContext.inputters[i], guiContext.e, guiContext.draw);
             }
-            control_panel_slider_event(guiContext);
+            control_panel_slider_event(guiContext, simulationContext);
             // start/stop training popup events
                 if (simulationContext.isTraining) {
                     stop_training_button_event(guiContext, simulationContext);
@@ -1533,15 +1552,7 @@
                 for (int i = 0; i<MAX_INFOBUTTONS; i++) {
                     infoButton_event(guiContext.infoButtons[i], guiContext.popupIsActive, guiContext.popupLabel, guiContext.e, guiContext.draw);
                 }
-            // save load button events
-                if (kiss_button_event(&guiContext.buttonSave, &guiContext.e, &guiContext.draw)) {
-                    save_generation(simulationContext);
-                    save_settings_and_meta_data(simulationContext, guiContext);
-                }
-                if (kiss_button_event(&guiContext.buttonLoad, &guiContext.e, &guiContext.draw)) {
-                    load_generation(simulationContext, "most-recent-generation");
-                    load_settings_and_meta_data(simulationContext, guiContext, "most-recent-settings");
-                }
+
             
             // Inputs
             guiContext.frameDelay = abs(atoi(guiContext.inputters[2].entry.text));
@@ -1588,6 +1599,15 @@
                         
                     }
                 }
+            // save load button events
+                if (kiss_button_event(&guiContext.buttonSave, &guiContext.e, &guiContext.draw)) {
+                    save_generation(simulationContext);
+                    save_settings_and_meta_data(simulationContext, guiContext);
+                }
+                if (kiss_button_event(&guiContext.buttonLoad, &guiContext.e, &guiContext.draw)) {
+                    load_generation(simulationContext, "most-recent-generation");
+                    load_settings_and_meta_data(simulationContext, guiContext, "most-recent-settings");
+                }
         }
     }
     void draw_gui_beneath_simulation(GUIContext &guiContext) {
@@ -1618,7 +1638,6 @@
                 SDL_RenderDrawLine(guiContext.renderer, simulationContext.staticColliders[i].startPos.x, simulationContext.staticColliders[i].startPos.y, simulationContext.staticColliders[i].endPos.x, simulationContext.staticColliders[i].endPos.y);
             }
         // Draw other collider lines
-            // SDL_RenderDrawLine(guiContext.renderer, 508, simulationContext.floorHeight, 508, 563);
         // Draw window titles
             kiss_makerect(&guiContext.panelControlsTitleRect, 1220, 4, 120, 15);
             kiss_fillrect(guiContext.renderer, &guiContext.panelControlsTitleRect, kiss_white);
@@ -1783,7 +1802,7 @@ int main(int argc, char **argv) {
             GUIContext guiContext = GUIContext();
             SimulationContext simulationContext = SimulationContext();
         { // Init GUI
-            if (!guiContext.renderer) {cout << "Renderer init failed"; return 1;}    
+            if (!guiContext.renderer) {cout << "Renderer init failed"; return 1;}                
             guiContext.targetPositionLabel.rect.x = simulationContext.targetPosition.x;
             guiContext.targetPositionLabel.rect.y = simulationContext.targetPosition.y;
             
@@ -1815,3 +1834,5 @@ int main(int argc, char **argv) {
 // pass in a seed
 // randomise payload spawn, target pos, arm angles, arm velos, payload velo
 // penalty when not touching payload to get it to pick it up fast.
+
+// added arm joint circles.
