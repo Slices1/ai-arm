@@ -189,8 +189,12 @@ SDL_Renderer* kiss_init(char* title, kiss_array *a, int w, int h)
 	IMG_Init(IMG_INIT_PNG);
 	TTF_Init();
 	kiss_array_new(a);
-	window = SDL_CreateWindow(title, srect.w / 2 - w / 2,
-		srect.h / 2 - h / 2, w, h, SDL_WINDOW_SHOWN);
+	window = SDL_CreateWindow(title,
+		srect.w / 2 - w / 2,
+		srect.h / 2 - h / 2,
+		w,
+		h,
+		SDL_WINDOW_SHOWN);
 	if (window) kiss_array_append(a, WINDOW_TYPE, window);
 	renderer = SDL_CreateRenderer(window, -1,
 		SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
